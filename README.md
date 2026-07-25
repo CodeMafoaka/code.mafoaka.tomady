@@ -1,2 +1,2 @@
-# code.mafoaka.tomady
+# Tomady
 Health Coach
