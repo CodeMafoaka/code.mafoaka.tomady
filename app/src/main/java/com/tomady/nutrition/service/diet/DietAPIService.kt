@@ -334,6 +334,13 @@ class DietAPIService(
         dietDatabase.getDishHistoryByUserInRange(userId, startDate, endDate)
     }
 
+    /**
+     * Retrieves all generated suggestion entries for a specific date.
+     */
+    suspend fun getDailySuggestions(date: String): List<DishHistory> = withContext(Dispatchers.IO) {
+        dietDatabase.getDishHistoryByDateAndMealType(date, "suggestion")
+    }
+
     // ══════════════════════════════════════════════════════════════════════
     // SECTION 6 — Business Logic: Nutrition Computation
     // ══════════════════════════════════════════════════════════════════════

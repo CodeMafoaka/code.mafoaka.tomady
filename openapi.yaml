@@ -1,0 +1,824 @@
+openapi: 3.0.3
+info:
+  title: Tomady Nutrition API
+  description: OpenAPI specification for the Tomady nutrition backend services, replacing legacy React Native bridge modules with HTTP endpoints.
+  version: 1.0.0
+servers:
+  - url: http://localhost:7777
+    description: Local API server on Android localhost port 7777
+paths:
+  /v1/food/search:
+    get:
+      summary: Search cached or remote foods by query
+      tags:
+        - FooDB
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Search term for food names or scientific names.
+      responses:
+        '200':
+          description: List of matching food items
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  query:
+                    type: string
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FoodItem'
+        '400':
+          description: Missing or invalid query parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/food/{foodId}:
+    get:
+      summary: Fetch full food details and nutrient properties (cache-first)
+      tags:
+        - FooDB
+      parameters:
+        - name: foodId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: FooDB food identifier.
+      responses:
+        '200':
+          description: Food item with nutrient properties
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  food:
+                    $ref: '#/components/schemas/FoodItem'
+                  nutrients:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/NutrientProperty'
+        '404':
+          description: Food item not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/users/{userId}/profile:
+    get:
+      summary: Get a user profile
+      tags:
+        - Diet
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Unique user identifier.
+      responses:
+        '200':
+          description: User profile returned successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '404':
+          description: Profile not found for user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    put:
+      summary: Update a user profile
+      tags:
+        - Diet
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Unique user identifier.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserProfileUpdate'
+      responses:
+        '200':
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '400':
+          description: Invalid profile update payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/users/{userId}/biorecords:
+    post:
+      summary: Log a height/weight biometric measurement
+      tags:
+        - Diet
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Unique user identifier.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BioRecordCreate'
+      responses:
+        '201':
+          description: BioRecord created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BioRecord'
+        '400':
+          description: Invalid biometric payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/users/{userId}/history:
+    get:
+      summary: Fetch dish history logs for a user
+      tags:
+        - Diet
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Unique user identifier.
+        - name: startDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+          description: Start date for the history window (inclusive).
+        - name: endDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+          description: End date for the history window (inclusive).
+      responses:
+        '200':
+          description: List of dish history entries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  userId:
+                    type: string
+                  entries:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DishHistoryEntry'
+    post:
+      summary: Log a dish consumption event
+      tags:
+        - Diet
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Unique user identifier.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DishHistoryCreate'
+      responses:
+        '201':
+          description: Dish history entry created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DishHistoryEntry'
+        '400':
+          description: Invalid dish history payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/dishes/{dishId}/nutrition:
+    get:
+      summary: Calculate aggregated macros and micronutrients for a dish
+      tags:
+        - Diet
+      parameters:
+        - name: dishId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Dish identifier.
+      responses:
+        '200':
+          description: Aggregated nutrition values for the dish
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dishId:
+                    type: string
+                  calories:
+                    type: number
+                  proteinGrams:
+                    type: number
+                  carbsGrams:
+                    type: number
+                  fatGrams:
+                    type: number
+                  micronutrients:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/NutrientProperty'
+        '404':
+          description: Dish not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/gemma/compute-recipe:
+    post:
+      summary: Generate a recipe and validate against the user's profile
+      tags:
+        - Gemma
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ComputeRecipeRequest'
+      responses:
+        '200':
+          description: Generated recipe returned successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GeneratedRecipe'
+        '400':
+          description: Invalid prompt or missing user context
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/gemma/ask:
+    post:
+      summary: Send a generic prompt to the local Gemma model
+      tags:
+        - Gemma
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GemmaAskRequest'
+      responses:
+        '200':
+          description: Gemma answer returned successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GemmaAnswer'
+        '400':
+          description: Invalid ask payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/worker/suggestions/daily:
+    get:
+      summary: Fetch today's generated dish suggestions
+      tags:
+        - Worker
+      responses:
+        '200':
+          description: Today's suggestions returned successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  date:
+                    type: string
+                    format: date
+                  suggestions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DishHistoryEntry'
+    post:
+      summary: Trigger daily suggestion generation immediately
+      tags:
+        - Worker
+      responses:
+        '202':
+          description: Daily suggestion worker triggered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: triggered
+                  message:
+                    type: string
+components:
+  schemas:
+    FoodItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        publicId:
+          type: string
+          nullable: true
+        name:
+          type: string
+          nullable: true
+        nameScientific:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        itisId:
+          type: string
+          nullable: true
+        wikipediaId:
+          type: string
+          nullable: true
+        pictureFileName:
+          type: string
+          nullable: true
+        pictureContentType:
+          type: string
+          nullable: true
+        pictureFileSize:
+          type: integer
+          nullable: true
+        pictureUpdatedAt:
+          type: string
+          nullable: true
+        legacyId:
+          type: integer
+          nullable: true
+        foodGroup:
+          type: string
+          nullable: true
+        foodSubgroup:
+          type: string
+          nullable: true
+        foodType:
+          type: string
+          nullable: true
+        category:
+          type: string
+          nullable: true
+        ncbiTaxonomyId:
+          type: integer
+          format: int64
+          nullable: true
+        exportToAfcdb:
+          type: boolean
+          nullable: true
+        exportToFoodb:
+          type: boolean
+          nullable: true
+        creatorId:
+          type: string
+          nullable: true
+        updaterId:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          nullable: true
+        updatedAt:
+          type: string
+          nullable: true
+      required:
+        - id
+    NutrientProperty:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        foodItemId:
+          type: integer
+          format: int64
+        nutrientName:
+          type: string
+          nullable: true
+        amount:
+          type: number
+          format: double
+          nullable: true
+        unit:
+          type: string
+          nullable: true
+        standardContent:
+          type: number
+          format: double
+          nullable: true
+        preparationType:
+          type: string
+          nullable: true
+        citation:
+          type: string
+          nullable: true
+        origContent:
+          type: string
+          nullable: true
+      required:
+        - id
+        - foodItemId
+    UserProfile:
+      type: object
+      properties:
+        userId:
+          type: string
+        displayName:
+          type: string
+          nullable: true
+        avatarUrl:
+          type: string
+          nullable: true
+        dateOfBirth:
+          type: string
+          format: date
+          nullable: true
+        heightCm:
+          type: number
+          format: double
+          nullable: true
+        weightKg:
+          type: number
+          format: double
+          nullable: true
+        dailyCalorieTarget:
+          type: integer
+          nullable: true
+        proteinGramsTarget:
+          type: integer
+          nullable: true
+        carbsGramsTarget:
+          type: integer
+          nullable: true
+        fatGramsTarget:
+          type: integer
+          nullable: true
+        goal:
+          type: string
+          nullable: true
+        createdAt:
+          type: integer
+          format: int64
+        updatedAt:
+          type: integer
+          format: int64
+      required:
+        - userId
+    UserProfileUpdate:
+      type: object
+      properties:
+        displayName:
+          type: string
+          nullable: true
+        avatarUrl:
+          type: string
+          nullable: true
+        dateOfBirth:
+          type: string
+          format: date
+          nullable: true
+        heightCm:
+          type: number
+          format: double
+          nullable: true
+        weightKg:
+          type: number
+          format: double
+          nullable: true
+        dailyCalorieTarget:
+          type: integer
+          nullable: true
+        proteinGramsTarget:
+          type: integer
+          nullable: true
+        carbsGramsTarget:
+          type: integer
+          nullable: true
+        fatGramsTarget:
+          type: integer
+          nullable: true
+        goal:
+          type: string
+          nullable: true
+      example:
+        displayName: "Jane Doe"
+        heightCm: 170.0
+        weightKg: 65.2
+        goal: "Lower blood sugar"
+    BioRecord:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        date:
+          type: string
+          format: date
+        weightKg:
+          type: number
+          format: double
+          nullable: true
+        bodyFatPercentage:
+          type: number
+          format: double
+          nullable: true
+        systolicBp:
+          type: integer
+          nullable: true
+        diastolicBp:
+          type: integer
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: integer
+          format: int64
+        updatedAt:
+          type: integer
+          format: int64
+      required:
+        - id
+        - userId
+        - date
+    BioRecordCreate:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        weightKg:
+          type: number
+          format: double
+          nullable: true
+        bodyFatPercentage:
+          type: number
+          format: double
+          nullable: true
+        systolicBp:
+          type: integer
+          nullable: true
+        diastolicBp:
+          type: integer
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+      required:
+        - date
+      example:
+        date: "2026-07-26"
+        weightKg: 72.5
+        notes: "Morning measurement"
+    Dish:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        category:
+          type: string
+          nullable: true
+        calories:
+          type: integer
+          nullable: true
+        proteinGrams:
+          type: number
+          format: double
+          nullable: true
+        carbsGrams:
+          type: number
+          format: double
+          nullable: true
+        fatGrams:
+          type: number
+          format: double
+          nullable: true
+        imageUrl:
+          type: string
+          nullable: true
+        createdAt:
+          type: integer
+          format: int64
+        updatedAt:
+          type: integer
+          format: int64
+      required:
+        - id
+        - name
+    DishHistoryEntry:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        dishId:
+          type: string
+          nullable: true
+        date:
+          type: string
+          format: date
+        mealType:
+          type: string
+          nullable: true
+        servings:
+          type: number
+          format: double
+          default: 1.0
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: integer
+          format: int64
+        updatedAt:
+          type: integer
+          format: int64
+      required:
+        - id
+        - userId
+        - date
+        - servings
+    DishHistoryCreate:
+      type: object
+      properties:
+        dishId:
+          type: string
+          nullable: true
+        date:
+          type: string
+          format: date
+        mealType:
+          type: string
+          nullable: true
+        servings:
+          type: number
+          format: double
+          default: 1.0
+        notes:
+          type: string
+          nullable: true
+      required:
+        - date
+      example:
+        dishId: "dish-123"
+        date: "2026-07-26"
+        mealType: "lunch"
+        servings: 1.0
+    ComputeRecipeRequest:
+      type: object
+      properties:
+        prompt:
+          type: string
+        userId:
+          type: string
+      required:
+        - prompt
+        - userId
+      example:
+        prompt: "Create a low-carb dinner recipe for a diabetic user."
+        userId: "user-123"
+    GeneratedRecipe:
+      type: object
+      properties:
+        dishId:
+          type: string
+        dishName:
+          type: string
+        recipeId:
+          type: string
+        instructions:
+          type: string
+          nullable: true
+        prepTimeMinutes:
+          type: integer
+          nullable: true
+        cookTimeMinutes:
+          type: integer
+          nullable: true
+        servings:
+          type: integer
+          nullable: true
+        ingredients:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              quantity:
+                type: number
+                format: double
+                nullable: true
+              unit:
+                type: string
+                nullable: true
+            required:
+              - name
+        isCompatible:
+          type: boolean
+        warnings:
+          type: array
+          items:
+            type: string
+        rawResponse:
+          type: string
+          nullable: true
+      required:
+        - dishId
+        - dishName
+        - recipeId
+        - isCompatible
+        - warnings
+    GemmaAskRequest:
+      type: object
+      properties:
+        question:
+          type: string
+        userId:
+          type: string
+          nullable: true
+      required:
+        - question
+      example:
+        question: "Can I have a banana if I'm trying to lower cholesterol?"
+        userId: "user-123"
+    GemmaAnswer:
+      type: object
+      properties:
+        answer:
+          type: string
+        referencedDishId:
+          type: string
+          nullable: true
+        referencedDishName:
+          type: string
+          nullable: true
+        rawResponse:
+          type: string
+          nullable: true
+      required:
+        - answer
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+        message:
+          type: string
+      required:
+        - code
+        - message

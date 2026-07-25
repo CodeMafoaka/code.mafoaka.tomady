@@ -5,6 +5,7 @@ import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import com.tomady.nutrition.service.http.TomadyApiServer
 import com.tomady.nutrition.worker.DailySuggestionWorker
 import java.util.concurrent.TimeUnit
 
@@ -19,10 +20,15 @@ import java.util.concurrent.TimeUnit
  */
 class TomadyApp : Application() {
 
+    private var apiServer: TomadyApiServer? = null
+
     override fun onCreate() {
         super.onCreate()
 
         scheduleDailySuggestionWorker()
+        apiServer = TomadyApiServer(this).apply {
+            startServer()
+        }
     }
 
     /**

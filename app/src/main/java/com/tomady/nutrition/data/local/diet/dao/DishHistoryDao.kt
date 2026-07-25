@@ -42,6 +42,9 @@ interface DishHistoryDao {
     @Query("SELECT * FROM dish_history WHERE user_id = :userId AND meal_type = :mealType AND date = :date ORDER BY created_at ASC")
     suspend fun getByUserDateAndMealType(userId: String, date: String, mealType: String): List<DishHistory>
 
+    @Query("SELECT * FROM dish_history WHERE date = :date AND meal_type = :mealType ORDER BY created_at ASC")
+    suspend fun getByDateAndMealType(date: String, mealType: String): List<DishHistory>
+
     @Query("DELETE FROM dish_history WHERE id = :id")
     suspend fun deleteById(id: String)
 

@@ -26,7 +26,7 @@ jobs:
           api-level: ${{ env.ANDROID_COMPILE_SDK }}
           build-tools: ${{ env.ANDROID_BUILD_TOOLS }}
       - name: Build services APK
-        run: ./gradlew assembleServicesDebug --no-daemon --stacktrace
+        run: ./gradlew assembleServicesDebug -PserviceApiPort=7777 --no-daemon --stacktrace
       - name: Upload services APK
         uses: actions/upload-artifact@v4
         with:
@@ -51,7 +51,7 @@ jobs:
           api-level: ${{ env.ANDROID_COMPILE_SDK }}
           build-tools: ${{ env.ANDROID_BUILD_TOOLS }}
       - name: Build demo APK
-        run: ./gradlew assembleDemoDebug --no-daemon --stacktrace
+        run: ./gradlew assembleDemoDebug -PserviceApiPort=7777 --no-daemon --stacktrace
       - name: Upload demo APK
         uses: actions/upload-artifact@v4
         with:
@@ -76,7 +76,7 @@ jobs:
           api-level: ${{ env.ANDROID_COMPILE_SDK }}
           build-tools: ${{ env.ANDROID_BUILD_TOOLS }}
       - name: Build full APK
-        run: ./gradlew assembleFullDebug --no-daemon --stacktrace
+        run: ./gradlew assembleFullDebug -PserviceApiPort=7777 --no-daemon --stacktrace
       - name: Upload full APK
         uses: actions/upload-artifact@v4
         with:
