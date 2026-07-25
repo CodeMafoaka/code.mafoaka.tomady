@@ -58,12 +58,7 @@ class FooDBLocalDatabase(
      * Returns all distinct food groups available in the local catalog.
      */
     suspend fun getFoodGroups(): List<String> {
-        var result = emptyList<String>()
-        foodItemDao.observeFoodGroups().first { emitted ->
-            result = emitted
-            true
-        }
-        return result
+        return foodItemDao.observeFoodGroups().first()
     }
 
     /**
@@ -112,12 +107,7 @@ class FooDBLocalDatabase(
      * Returns all distinct nutrient names available in the local database.
      */
     suspend fun getNutrientNames(): List<String> {
-        var result = emptyList<String>()
-        nutrientPropertyDao.observeNutrientNames().first { emitted ->
-            result = emitted
-            true
-        }
-        return result
+        return nutrientPropertyDao.observeNutrientNames().first()
     }
 
     /**

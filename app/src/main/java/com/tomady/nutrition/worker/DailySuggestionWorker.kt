@@ -6,13 +6,13 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.tomady.nutrition.data.AppDatabase
 import com.tomady.nutrition.data.local.diet.DietDatabase
-import com.tomady.nutrition.data.local.diet.entity.Dish
 import com.tomady.nutrition.data.local.diet.entity.DishHistory
 import com.tomady.nutrition.data.local.foodb.FooDBLocalDatabase
 import com.tomady.nutrition.service.diet.DietAPIService
 import com.tomady.nutrition.service.foodb.FooDBDataAPIService
 import com.tomady.nutrition.service.gemma.GemmaAndroidService
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -106,12 +106,13 @@ class DailySuggestionWorker(
             }
 
             // 2. Fetch all registered users via the UserDao
-            //    (We use observeAll().first() — but in a worker we can directly
-            //     call the suspend variant by querying all users)
             val users = dietDb.userDao.observeAll().let { flow ->
-                // Room DAO returns Flow; collect the first emission
+                // Collect the first emission from the reactive Flow
                 var result = emptyList<com.tomady.nutrition.data.local.diet.entity.User>()
-                flow.collect { result = it; return@collect }
+                flow.first { emitted ->
+                    result = emitted
+                    true  // stop after first emission
+                }
                 result
             }
 

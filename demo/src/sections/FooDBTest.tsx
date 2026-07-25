@@ -41,7 +41,10 @@ const FooDBTest: React.FC = () => {
   const [foodDetail, setFoodDetail] = useState<FoodDetailResult | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
+  // Tracks whether we've already seen a food detail call to detect cache hits
+  // (first fetch = remote, subsequent identical fetches = local cache)
   const [cacheSource, setCacheSource] = useState<'none' | 'local' | 'remote'>('none');
+  const [lastFetchedId, setLastFetchedId] = useState<number | null>(null);
 
   // Food groups
   const [foodGroups, setFoodGroups] = useState<string[]>([]);
@@ -74,14 +77,19 @@ const FooDBTest: React.FC = () => {
     }
     setDetailLoading(true);
     setDetailError(null);
-    setCacheSource('none');
     try {
+      // If we've already fetched this ID before, the cache-first logic in
+      // FooDBDataAPIService.getFoodDetails() should return from local DB.
+      const isRepeatFetch = lastFetchedId === id;
+      
       const result = await TomadyFooDB.getNutrients(id);
       if (result) {
         setFoodDetail(result);
-        setCacheSource('remote'); // Will refine below
+        setCacheSource(isRepeatFetch ? 'local' : 'remote');
+        setLastFetchedId(id);
       } else {
         setFoodDetail(null);
+        setCacheSource('none');
         setDetailError('Food not found');
       }
     } catch (e: any) {
@@ -90,7 +98,7 @@ const FooDBTest: React.FC = () => {
     } finally {
       setDetailLoading(false);
     }
-  }, [foodIdInput]);
+  }, [foodIdInput, lastFetchedId]);
 
   // ── Food groups handler ─────────────────────────────────────────────
 
