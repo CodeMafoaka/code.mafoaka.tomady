@@ -40,6 +40,16 @@ jobs:
           api-level: ${{ env.ANDROID_COMPILE_SDK }}
           build-tools: ${{ env.ANDROID_BUILD_TOOLS }}
 
+      - name: Set up Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      # Need npm install for compileOnly react-native AAR resolution
+      - name: Install demo dependencies
+        working-directory: ./demo
+        run: npm install
+
       - name: Build services APK
         run: ./gradlew assembleServicesDebug --no-daemon --stacktrace
 
