@@ -1,0 +1,71 @@
+name: Build Debug APK
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:  # allow manual trigger from GitHub UI
+
+env:
+  JAVA_VERSION: "17"
+  ANDROID_COMPILE_SDK: "34"
+  ANDROID_BUILD_TOOLS: "34.0.0"
+  NODE_VERSION: "20"
+
+jobs:
+  build:
+    name: Build Debug APK
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── Checkout ────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── Set up Java 17 ───────────────────────────────────────────────
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: "temurin"
+
+      # ── Set up Android SDK ────────────────────────────────────────────
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          api-level: ${{ env.ANDROID_COMPILE_SDK }}
+          build-tools: ${{ env.ANDROID_BUILD_TOOLS }}
+
+      # ── Set up Node.js (for React Native JS bundling) ────────────────
+      - name: Set up Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      # ── Install demo RN dependencies and bundle JS ───────────────────
+      - name: Install demo dependencies
+        working-directory: ./demo
+        run: npm ci
+
+      - name: Bundle React Native JS (Android)
+        working-directory: ./demo
+        run: |
+          npx react-native bundle \
+            --platform android \
+            --dev false \
+            --entry-file index.js \
+            --bundle-output ../app/src/main/assets/index.android.bundle \
+            --assets-dest ../app/src/main/res/
+
+      # ── Build the debug APK ───────────────────────────────────────────
+      - name: Build debug APK with Gradle
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      # ── Upload APK as a build artifact ───────────────────────────────
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: tomady-nutrition-debug
+          path: app/build/outputs/apk/debug/*.apk
+          compression-level: 0  # APK is already compressed
+          if-no-files-found: error
