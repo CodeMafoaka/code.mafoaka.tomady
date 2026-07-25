@@ -8,6 +8,7 @@ import com.tomady.nutrition.service.gemma.GemmaAnswerResult
 import com.tomady.nutrition.service.gemma.GemmaRecipeResult
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
+import com.tomady.nutrition.worker.DailySuggestionWorker
 import fi.iki.elonen.NanoHTTPD
 import fi.iki.elonen.NanoHTTPD.IHTTPSession
 import fi.iki.elonen.NanoHTTPD.Response

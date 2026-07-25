@@ -101,4 +101,7 @@ class DietDatabase(
     suspend fun getDishHistoryByUserDateAndMealType(
         userId: String, date: String, mealType: String
     ): List<DishHistory> = dishHistoryDao.getByUserDateAndMealType(userId, date, mealType)
+    
+    suspend fun getDishHistoryByDateAndMealType(date: String, mealType: String): List<DishHistory> =
+        dishHistoryDao.getByDateAndMealType(date, mealType)
 }

@@ -25,6 +25,25 @@ jobs:
         with:
           api-level: ${{ env.ANDROID_COMPILE_SDK }}
           build-tools: ${{ env.ANDROID_BUILD_TOOLS }}
+      - name: Ensure cmdline-tools + accept licenses
+        env:
+          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
+        run: |
+          if [ -x "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" ]; then
+            yes | "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" --licenses || true
+          elif [ -x "${ANDROID_SDK_ROOT}/tools/bin/sdkmanager" ]; then
+            yes | "${ANDROID_SDK_ROOT}/tools/bin/sdkmanager" --licenses || true
+          else
+            echo "sdkmanager not found; continuing (runner may already have SDK)."
+          fi
+      - name: Build services APK
+        - name: Verify repo and strings resource
+        run: |
+          echo "Branch: $(git rev-parse --abbrev-ref HEAD)"
+          echo "Commit: $(git rev-parse HEAD)"
+          git ls-files | grep app/src/main/res/values/strings.xml || true
+          ls -l app/src/main/res || true
+          cat app/src/main/res/values/strings.xml || true
       - name: Build services APK
         run: ./gradlew assembleServicesDebug -PserviceApiPort=7777 --no-daemon --stacktrace
       - name: Upload services APK
@@ -50,6 +69,25 @@ jobs:
         with:
           api-level: ${{ env.ANDROID_COMPILE_SDK }}
           build-tools: ${{ env.ANDROID_BUILD_TOOLS }}
+      - name: Ensure cmdline-tools + accept licenses
+        env:
+          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
+        run: |
+          if [ -x "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" ]; then
+            yes | "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" --licenses || true
+          elif [ -x "${ANDROID_SDK_ROOT}/tools/bin/sdkmanager" ]; then
+            yes | "${ANDROID_SDK_ROOT}/tools/bin/sdkmanager" --licenses || true
+          else
+            echo "sdkmanager not found; continuing (runner may already have SDK)."
+          fi
+      - name: Build demo APK
+        - name: Verify repo and strings resource
+        run: |
+          echo "Branch: $(git rev-parse --abbrev-ref HEAD)"
+          echo "Commit: $(git rev-parse HEAD)"
+          git ls-files | grep app/src/main/res/values/strings.xml || true
+          ls -l app/src/main/res || true
+          cat app/src/main/res/values/strings.xml || true
       - name: Build demo APK
         run: ./gradlew assembleDemoDebug -PserviceApiPort=7777 --no-daemon --stacktrace
       - name: Upload demo APK
@@ -75,6 +113,25 @@ jobs:
         with:
           api-level: ${{ env.ANDROID_COMPILE_SDK }}
           build-tools: ${{ env.ANDROID_BUILD_TOOLS }}
+      - name: Ensure cmdline-tools + accept licenses
+        env:
+          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
+        run: |
+          if [ -x "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" ]; then
+            yes | "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" --licenses || true
+          elif [ -x "${ANDROID_SDK_ROOT}/tools/bin/sdkmanager" ]; then
+            yes | "${ANDROID_SDK_ROOT}/tools/bin/sdkmanager" --licenses || true
+          else
+            echo "sdkmanager not found; continuing (runner may already have SDK)."
+          fi
+      - name: Build full APK
+        - name: Verify repo and strings resource
+        run: |
+          echo "Branch: $(git rev-parse --abbrev-ref HEAD)"
+          echo "Commit: $(git rev-parse HEAD)"
+          git ls-files | grep app/src/main/res/values/strings.xml || true
+          ls -l app/src/main/res || true
+          cat app/src/main/res/values/strings.xml || true
       - name: Build full APK
         run: ./gradlew assembleFullDebug -PserviceApiPort=7777 --no-daemon --stacktrace
       - name: Upload full APK
