@@ -1,0 +1,24 @@
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+plugins {
+    // Apply the foojay-resolver plugin to allow automatic download of JDKs
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '0.8.0'
+}
+
+rootProject.name = 'nutrition'
+include('lib')
+
+// Conditionally include app module only when Android SDK or CI context is available.
+// This guarantees our baseline local JDK-only verification remains fast and compilable.
+boolean isCI = System.getenv("CI") != null
+boolean hasAndroidSdk = System.getenv("ANDROID_HOME") != null || System.getenv("ANDROID_SDK_ROOT") != null || new File(System.getProperty("user.home"), "Library/Android/sdk").exists() || new File("C:/Users/" + System.getProperty("user.name") + "/AppData/Local/Android/Sdk").exists()
+
+if (isCI || hasAndroidSdk) {
+    include('app')
+}

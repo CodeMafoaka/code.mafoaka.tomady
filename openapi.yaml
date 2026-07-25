@@ -1,0 +1,464 @@
+openapi: 3.0.3
+info:
+  title: Headless Nutrition HTTP API
+  description: OpenAPI-driven HTTP server model for the com.tomady.nutrition services.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+    description: Local development headless Android server
+paths:
+
+  /v1/food/search:
+    get:
+      summary: Search foods
+      description: Search cached/remote foods by query string.
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: Search query for the food name (e.g. 'apple')
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A list of matching food items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FoodItem'
+        '400':
+          description: Invalid query parameter
+
+  /v1/food/{foodId}:
+    get:
+      summary: Get food details
+      description: Retrieve full details and nutrient properties of a food item using a cache-first approach.
+      parameters:
+        - name: foodId
+          in: path
+          required: true
+          description: The unique identifier of the food item in FooDB
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Complete food details with nutrient properties
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  foodItem:
+                    $ref: '#/components/schemas/FoodItem'
+                  nutrientProperties:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/NutrientProperty'
+        '404':
+          description: Food item not found
+        '503':
+          description: Remote service connection timeout/network failure
+
+  /v1/users/{userId}/profile:
+    get:
+      summary: Retrieve user profile
+      description: Get user profile, including health conditions, allergies, and goals.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: Unique user identifier
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: User profile successfully retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '404':
+          description: User or Profile not found
+    put:
+      summary: Update user profile
+      description: Update user profile details, including physical stats, diseases, allergies, and nutritional goals.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: Unique user identifier
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserProfile'
+      responses:
+        '200':
+          description: User profile successfully updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '400':
+          description: Invalid input details
+
+  /v1/users/{userId}/biorecords:
+    post:
+      summary: Log bio record measurements
+      description: Log height/weight measurements for a user profile.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: Unique user identifier
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - height
+                - weight
+              properties:
+                height:
+                  type: number
+                  format: double
+                  description: Height in centimeters
+                weight:
+                  type: number
+                  format: double
+                  description: Weight in kilograms
+      responses:
+        '201':
+          description: Bio measurement record created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BioRecord'
+        '400':
+          description: Invalid input details
+
+  /v1/users/{userId}/history:
+    get:
+      summary: Fetch consumption history
+      description: Retrieve the history of logged dish consumption events for a user.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: Unique user identifier
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: History logs retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DishHistoryEntry'
+    post:
+      summary: Log dish consumption
+      description: Log a dish consumption event at a specific timestamp.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: Unique user identifier
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - dishId
+                - consumedAt
+              properties:
+                dishId:
+                  type: integer
+                  description: Unique identifier of the dish
+                consumedAt:
+                  type: string
+                  format: date-time
+                  description: ISO 8601 timestamp of consumption
+      responses:
+        '201':
+          description: Consumption successfully logged
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DishHistoryEntry'
+        '400':
+          description: Invalid input details or dish not found
+
+  /v1/dishes/{dishId}/nutrition:
+    get:
+      summary: Get dish nutrition
+      description: Calculate aggregated macro and micronutrients for a given dish.
+      parameters:
+        - name: dishId
+          in: path
+          required: true
+          description: Unique identifier of the dish
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Nutrient aggregation calculations completed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dish:
+                    $ref: '#/components/schemas/Dish'
+                  protein:
+                    type: number
+                    format: double
+                    description: Aggregated protein in grams
+                  fat:
+                    type: number
+                    format: double
+                    description: Aggregated fat in grams
+                  carbohydrate:
+                    type: number
+                    format: double
+                    description: Aggregated carbohydrates in grams
+                  calories:
+                    type: number
+                    format: double
+                    description: Aggregated total calories (kcal)
+                  sugar:
+                    type: number
+                    format: double
+                    description: Aggregated refined/total sugar content in grams
+        '404':
+          description: Dish not found
+
+  /v1/gemma/compute-recipe:
+    post:
+      summary: Generate recipe and run profile safety checks
+      description: Generate a recipe from a prompt using Gemma LLM and perform dynamic medical safety validations against active profile restrictions.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - prompt
+                - profileId
+              properties:
+                prompt:
+                  type: string
+                  description: User query prompt for target dish/recipe (e.g., 'Make a quick dessert')
+                profileId:
+                  type: integer
+                  description: Active user profile ID to validate safety against
+      responses:
+        '200':
+          description: Recipe computed and safety validation performed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GeneratedRecipe'
+        '400':
+          description: Invalid parameters or prompt constraint failure
+
+  /v1/gemma/ask:
+    post:
+      summary: Send generic query to Gemma LLM
+      description: Submit generic questions or custom prompts to the local Gemma model.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - prompt
+              properties:
+                prompt:
+                  type: string
+                  description: Prompt to be evaluated
+      responses:
+        '200':
+          description: Answer from Gemma successfully returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  answer:
+                    type: string
+                    description: Generated raw response string from local Gemma
+
+  /v1/worker/suggestions/daily:
+    get:
+      summary: Get daily suggestions
+      description: Fetch today's generated daily meal suggestions.
+      responses:
+        '200':
+          description: Today's meal suggestions successfully returned
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Dish'
+    post:
+      summary: Trigger DailySuggestionWorker manually
+      description: Force a manual run of DailySuggestionWorker to update the suggested meal items immediately.
+      responses:
+        '202':
+          description: Worker run successfully triggered in the background
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ENQUEUED"
+                  message:
+                    type: string
+                    example: "DailySuggestionWorker execution successfully scheduled."
+
+components:
+  schemas:
+
+    FoodItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Unique internal ID
+        name:
+          type: string
+          description: Name of the food item
+        description:
+          type: string
+          description: Text description
+        groupName:
+          type: string
+          description: Food group categorization (e.g. Vegetables, Fruits)
+        subGroupName:
+          type: string
+          description: Sub-group classification
+
+    NutrientProperty:
+      type: object
+      properties:
+        id:
+          type: integer
+        foodItemId:
+          type: integer
+        propertyName:
+          type: string
+          description: Nutrient name (e.g. Protein, Sugar, Vitamin C)
+        propertyValue:
+          type: number
+          format: double
+          description: Amount of property per 100g/100ml
+        propertyUnit:
+          type: string
+          description: Unit of measurement (e.g. g, mg, kcal)
+
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        age:
+          type: integer
+        height:
+          type: number
+          format: double
+        weight:
+          type: number
+          format: double
+        allergies:
+          type: string
+          description: Comma-separated list of active allergies (e.g. 'peanut, gluten')
+        diseases:
+          type: string
+          description: Comma-separated list of diagnosed diseases (e.g. 'Diabetes')
+        nutritionalGoal:
+          type: string
+          description: Health goals
+
+    BioRecord:
+      type: object
+      properties:
+        id:
+          type: integer
+        profileId:
+          type: integer
+        height:
+          type: number
+          format: double
+        weight:
+          type: number
+          format: double
+        recordedAt:
+          type: string
+          format: date-time
+
+    Dish:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        recipeId:
+          type: integer
+        calories:
+          type: number
+          format: double
+
+    DishHistoryEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        dishId:
+          type: integer
+        consumedAt:
+          type: string
+          format: date-time
+
+    GeneratedRecipe:
+      type: object
+      properties:
+        recipeTitle:
+          type: string
+          description: Title of generated recipe
+        content:
+          type: string
+          description: Direct LLM generated raw content instructions
+        isSafe:
+          type: boolean
+          description: True if the dish matches allergy/disease limits
+        warnings:
+          type: array
+          items:
+            type: string
+          description: Detailed warning logs of profile mismatches

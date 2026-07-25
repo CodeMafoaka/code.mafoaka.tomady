@@ -1,0 +1,44 @@
+plugins {
+    id 'com.android.application' version '8.2.2'
+}
+
+repositories {
+    google()
+    mavenCentral()
+}
+
+android {
+    namespace 'com.tomady.nutrition.app'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.tomady.nutrition.app"
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName "1.0.0"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation project(':lib')
+    implementation "androidx.appcompat:appcompat:1.6.1"
+    implementation "androidx.room:room-runtime:2.6.1"
+    annotationProcessor "androidx.room:room-compiler:2.6.1"
+    implementation "androidx.work:work-runtime:2.9.0"
+    implementation "com.facebook.react:react-android:0.72.6"
+}
