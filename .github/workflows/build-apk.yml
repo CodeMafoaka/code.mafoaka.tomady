@@ -36,8 +36,7 @@ jobs:
           else
             echo "sdkmanager not found; continuing (runner may already have SDK)."
           fi
-      - name: Build services APK
-        - name: Verify repo and strings resource
+      - name: Verify repo and strings resource
         run: |
           echo "Branch: $(git rev-parse --abbrev-ref HEAD)"
           echo "Commit: $(git rev-parse HEAD)"
@@ -80,8 +79,7 @@ jobs:
           else
             echo "sdkmanager not found; continuing (runner may already have SDK)."
           fi
-      - name: Build demo APK
-        - name: Verify repo and strings resource
+      - name: Verify repo and strings resource
         run: |
           echo "Branch: $(git rev-parse --abbrev-ref HEAD)"
           echo "Commit: $(git rev-parse HEAD)"
@@ -124,8 +122,7 @@ jobs:
           else
             echo "sdkmanager not found; continuing (runner may already have SDK)."
           fi
-      - name: Build full APK
-        - name: Verify repo and strings resource
+      - name: Verify repo and strings resource
         run: |
           echo "Branch: $(git rev-parse --abbrev-ref HEAD)"
           echo "Commit: $(git rev-parse HEAD)"
