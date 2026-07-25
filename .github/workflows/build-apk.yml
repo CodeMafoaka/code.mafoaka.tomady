@@ -43,7 +43,7 @@ jobs:
       # ── Install demo RN dependencies and bundle JS ───────────────────
       - name: Install demo dependencies
         working-directory: ./demo
-        run: npm ci
+        run: npm install
 
       - name: Bundle React Native JS (Android)
         working-directory: ./demo
