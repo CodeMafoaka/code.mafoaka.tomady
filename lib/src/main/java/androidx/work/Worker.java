@@ -9,14 +9,27 @@ public abstract class Worker {
     public abstract Result doWork();
 
     public static abstract class Result {
+        private static final Result SUCCESS_INSTANCE = new Result() {
+            @Override
+            public String toString() { return "SUCCESS"; }
+        };
+        private static final Result FAILURE_INSTANCE = new Result() {
+            @Override
+            public String toString() { return "FAILURE"; }
+        };
+        private static final Result RETRY_INSTANCE = new Result() {
+            @Override
+            public String toString() { return "RETRY"; }
+        };
+
         public static Result success() {
-            return new Result() {};
+            return SUCCESS_INSTANCE;
         }
         public static Result failure() {
-            return new Result() {};
+            return FAILURE_INSTANCE;
         }
         public static Result retry() {
-            return new Result() {};
+            return RETRY_INSTANCE;
         }
     }
 }

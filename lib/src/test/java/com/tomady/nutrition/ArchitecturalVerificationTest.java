@@ -16,6 +16,7 @@ import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.bridge.WritableArray;
 import com.facebook.react.bridge.ReactApplicationContext;
+import androidx.work.Worker;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -705,5 +706,50 @@ public class ArchitecturalVerificationTest {
         WritableMap map = (WritableMap) computePromise.resolvedValue;
         assertEquals("Nutritious Salad", map.getString("recipeTitle"));
         assertTrue(map.getBoolean("isSafe"));
+    }
+
+    @Test
+    public void testDailySuggestionWorkerProcessing() {
+        FakeDietDatabase fakeDietDb = new FakeDietDatabase();
+        DietAPIService dietService = new DietAPIService(fakeDietDb, null);
+        GemmaAndroidService gemmaService = new GemmaAndroidService(dietService);
+        ReactApplicationContext reactContext = new ReactApplicationContext();
+
+        // Register fake static dependencies in worker
+        DailySuggestionWorker.setDependencies(dietService, gemmaService, reactContext);
+
+        // Populate database with user, profile, and history
+        User u = new User();
+        u.setId(1);
+        u.setName("Alex");
+        fakeDietDb.dietDao().insertUser(u);
+
+        Profile p = new Profile();
+        p.setId(1);
+        p.setUserId(1);
+        p.setAge(28);
+        p.setAllergies("peanut");
+        p.setDiseases("Diabetes");
+        fakeDietDb.dietDao().insertProfile(p);
+
+        DishHistory h = new DishHistory();
+        h.setId(1);
+        h.setUserId(1);
+        h.setDishId(10);
+        h.setConsumedAt("2024-10-31T08:00:00Z");
+        fakeDietDb.dietDao().insertDishHistory(h);
+
+        // Create the worker
+        DailySuggestionWorker worker = new DailySuggestionWorker(null, null);
+
+        // Execute the background suggestion compilation task
+        Worker.Result result = worker.doWork();
+
+        // Assert success and database persistence of the suggestions
+        assertEquals(Worker.Result.success(), result);
+
+        List<Dish> dishes = fakeDietDb.dietDao().getAllDishes();
+        assertFalse(dishes.isEmpty());
+        assertTrue(dishes.get(0).getName().startsWith("Suggested:"));
     }
 }
