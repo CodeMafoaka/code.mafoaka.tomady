@@ -2,6 +2,7 @@ package com.tomady.nutrition.service.http
 
 import android.content.Context
 import com.google.gson.Gson
+import com.google.gson.JsonObject
 import com.tomady.nutrition.BuildConfig
 import com.tomady.nutrition.data.local.diet.entity.DishHistory
 import com.tomady.nutrition.service.gemma.GemmaAnswerResult
@@ -36,10 +37,14 @@ internal class TomadyApiServer(
         return try {
             route(session)
         } catch (exception: Exception) {
+            val err = JsonObject().apply {
+                addProperty("code", 500)
+                addProperty("message", exception.message ?: "Internal server error")
+            }
             newFixedLengthResponse(
                 Response.Status.INTERNAL_ERROR,
                 "application/json",
-                gson.toJson(mapOf("code" to 500, "message" to exception.message ?: "Internal server error"))
+                gson.toJson(err)
             )
         }
     }
@@ -279,12 +284,12 @@ internal class TomadyApiServer(
     private fun badRequest(message: String): Response = newFixedLengthResponse(
         Response.Status.BAD_REQUEST,
         "application/json",
-        gson.toJson(mapOf("code" to 400, "message" to message))
+        gson.toJson(JsonObject().apply { addProperty("code", 400); addProperty("message", message) })
     )
 
     private fun notFound(message: String): Response = newFixedLengthResponse(
         Response.Status.NOT_FOUND,
         "application/json",
-        gson.toJson(mapOf("code" to 404, "message" to message))
+        gson.toJson(JsonObject().apply { addProperty("code", 404); addProperty("message", message) })
     )
 }
