@@ -5,19 +5,9 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.tomady.nutrition.BuildConfig
 import com.tomady.nutrition.data.local.diet.DietDatabase
-import com.tomady.nutrition.data.local.diet.entity.BioRecord
-import com.tomady.nutrition.data.local.diet.entity.Dish
-import com.tomady.nutrition.data.local.diet.entity.Profile
-import com.tomady.nutrition.data.local.foodb.FooDBLocalDatabase
 import com.tomady.nutrition.service.diet.DietAPIService
-import com.tomady.nutrition.service.diet.DailyTargets
-import com.tomady.nutrition.service.diet.DailySummary
-import com.tomady.nutrition.service.diet.NutritionSummary
-import com.tomady.nutrition.service.diet.ProfileValidationResult
 import com.tomady.nutrition.service.foodb.FooDBDataAPIService
 import com.tomady.nutrition.service.gemma.GemmaAndroidService
-import com.tomady.nutrition.service.gemma.GemmaAnswerResult
-import com.tomady.nutrition.service.gemma.GemmaRecipeResult
 import com.tomady.nutrition.worker.DailySuggestionWorker
 import fi.iki.elonen.NanoHTTPD
 import kotlinx.coroutines.CoroutineScope
@@ -27,12 +17,11 @@ import kotlinx.coroutines.launch
 import java.io.ByteArrayInputStream
 import java.net.Inet4Address
 import java.net.NetworkInterface
-import java.util.UUID
 
 /**
  * Embedded REST API server for Tomady Nutrition services.
  *
- * Binds to **0.0.0.0** on **port 8910** so it is accessible from any device
+ * Binds to **0.0.0.0** on **port 7777** so it is accessible from any device
  * on the same local network (WiFi). An external React Native (or any HTTP)
  * client can call these endpoints instead of using native bridge modules.
  *
@@ -142,6 +131,9 @@ class TomadyRestApiServer(
         }
 
         return when {
+            // ── Ping ────────────────────────────────────────────────
+            method == "GET" && uri == "/ping" -> handlePing()
+
             // ── Health ─────────────────────────────────────────────
             method == "GET" && uri == "/api/v1/health" -> handleHealth()
 
@@ -216,6 +208,12 @@ class TomadyRestApiServer(
     // ══════════════════════════════════════════════════════════════════════
     // Handler implementations
     // ══════════════════════════════════════════════════════════════════════
+
+    // ── Ping ───────────────────────────────────────────────────────────
+
+    private fun handlePing(): Response {
+        return jsonOk(mapOf("ok" to true, "message" to "Tomady server is running on port $port"))
+    }
 
     // ── Health ──────────────────────────────────────────────────────────
 
@@ -532,7 +530,7 @@ class TomadyRestApiServer(
 
     companion object {
         /** Default HTTP port for the REST API. */
-        const val DEFAULT_PORT = 8910
+        const val DEFAULT_PORT = 7777
 
         private const val TAG = "TomadyRestApi"
 

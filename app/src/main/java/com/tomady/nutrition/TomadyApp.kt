@@ -105,12 +105,12 @@ class TomadyApp : Application() {
     /**
      * Starts the embedded REST API server for local-network access.
      *
-     * The server binds to **0.0.0.0** on port **8910**, making it accessible
+     * The server binds to **0.0.0.0** on port **7777**, making it accessible
      * from any device on the same WiFi network. External React Native (or any
      * HTTP) clients can call the REST endpoints instead of using native bridge
      * modules.
      *
-     * Server URL: `http://<device-wifi-ip>:8910/api/v1/health`
+     * Server URL: `http://<device-wifi-ip>:7777/api/v1/health`
      */
     private fun startApiServer() {
         apiServer = TomadyRestApiServer(

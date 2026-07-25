@@ -3,488 +3,221 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Tomady Test Dashboard</title>
+<title>Tomady Server</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; background: #0f0f23; color: #e0e0e0; padding: 16px; }
-  h1 { font-size: 22px; color: #fff; margin-bottom: 4px; }
-  .subtitle { color: #888; font-size: 13px; margin-bottom: 20px; }
-  .tab-bar { display: flex; gap: 4px; margin-bottom: 16px; background: #1a1a2e; border-radius: 10px; padding: 4px; }
-  .tab { flex: 1; text-align: center; padding: 10px 6px; border-radius: 8px; font-size: 12px; font-weight: 600; color: #888; cursor: pointer; transition: all .2s; }
-  .tab.active { background: #4CAF50; color: #fff; }
-  .tab-content { display: none; }
-  .tab-content.active { display: block; }
-  .card { background: #1a1a2e; border-radius: 12px; padding: 16px; margin-bottom: 12px; }
-  .card h3 { font-size: 14px; color: #4CAF50; margin-bottom: 10px; }
-  input, select { width: 100%; padding: 10px 12px; background: #16213e; border: 1px solid #2a2a4a; border-radius: 8px; color: #e0e0e0; font-size: 14px; margin-bottom: 8px; }
-  input::placeholder { color: #666; }
-  .btn { padding: 10px 16px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: opacity .15s; color: #fff; margin-right: 6px; margin-bottom: 6px; }
+  body { font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; background: #0f0f23; color: #e0e0e0; }
+  .container { padding: 24px 16px; max-width: 600px; margin: 0 auto; }
+  h1 { font-size: 24px; color: #4CAF50; margin-bottom: 4px; display: flex; align-items: center; gap: 10px; }
+  h1 .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; background: #555; transition: background .3s; }
+  h1 .dot.online { background: #4CAF50; box-shadow: 0 0 12px rgba(76,175,80,.5); }
+  h1 .dot.offline { background: #e53935; }
+  .subtitle { color: #888; font-size: 13px; margin-bottom: 24px; }
+  .server-card { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 16px; padding: 20px; margin-bottom: 16px; border: 1px solid #2a2a4a; }
+  .server-card h2 { font-size: 14px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+  .server-card .row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #1f1f35; font-size: 14px; }
+  .server-card .row:last-child { border-bottom: none; }
+  .server-card .label { color: #888; }
+  .server-card .value { color: #e0e0e0; font-weight: 500; font-family: 'Courier New', monospace; }
+  .server-card .value.ok { color: #4CAF50; }
+  .server-card .value.err { color: #e53935; }
+  .ping-btn { display: block; width: 100%; padding: 14px; border: none; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; color: #fff; background: linear-gradient(135deg, #4CAF50, #2E7D32); transition: transform .15s, box-shadow .15s; margin-bottom: 16px; }
+  .ping-btn:active { transform: scale(.97); }
+  .ping-btn:disabled { opacity: .5; }
+  .endpoints { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .endpoint { display: inline-block; padding: 6px 12px; background: #1f1f35; border-radius: 8px; font-size: 11px; color: #888; font-family: 'Courier New', monospace; }
+  .endpoint span { color: #4CAF50; }
+  .section { margin-top: 24px; }
+  .section h3 { font-size: 14px; color: #4CAF50; margin-bottom: 12px; }
+  .input-group { display: flex; gap: 8px; margin-bottom: 8px; }
+  .input-group input { flex: 1; padding: 10px 12px; background: #16213e; border: 1px solid #2a2a4a; border-radius: 8px; color: #e0e0e0; font-size: 14px; }
+  .input-group input::placeholder { color: #555; }
+  .btn { padding: 10px 16px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; color: #fff; background: #1976D2; transition: opacity .15s; white-space: nowrap; }
   .btn:active { opacity: .7; }
-  .btn-primary { background: #4CAF50; }
-  .btn-secondary { background: #1976D2; }
-  .btn-danger { background: #e53935; }
-  .btn-warning { background: #FF9800; }
   .btn-sm { padding: 6px 12px; font-size: 12px; }
-  .btn-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
-  .output { background: #16213e; border-radius: 8px; padding: 12px; margin-top: 8px; font-size: 12px; font-family: 'Courier New', monospace; max-height: 300px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; color: #aaa; }
-  .output .success { color: #4CAF50; }
-  .output .error { color: #e53935; }
+  .btn-green { background: #4CAF50; }
+  .btn-orange { background: #FF9800; }
+  .btn-red { background: #e53935; }
+  .output { background: #16213e; border-radius: 8px; padding: 12px; margin-top: 8px; font-size: 12px; font-family: 'Courier New', monospace; max-height: 200px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; color: #aaa; }
+  .output .ok { color: #4CAF50; }
+  .output .err { color: #e53935; }
   .output .info { color: #64B5F6; }
-  .badge { display: inline-block; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; margin: 4px 2px; }
-  .badge-local { background: #1B5E20; color: #A5D6A7; }
-  .badge-remote { background: #0D47A1; color: #90CAF9; }
-  .badge-ok { background: #1B5E20; color: #A5D6A7; }
-  .badge-warn { background: #E65100; color: #FFCC80; }
-  .loading { color: #888; font-style: italic; }
-  .tag { display: inline-block; background: #1B5E20; border-radius: 12px; padding: 4px 10px; font-size: 11px; color: #A5D6A7; margin: 2px; }
+  .hidden { display: none; }
 </style>
 </head>
 <body>
+<div class="container">
 
-<h1>🧪 Tomady Test Dashboard</h1>
-<p class="subtitle">WebView Demo — Native Services Test UI</p>
+<h1>
+  <span class="dot" id="statusDot"></span>
+  Tomady Server
+</h1>
+<p class="subtitle">Embedded nutrition microservices on port 7777</p>
 
-<div class="tab-bar">
-  <div class="tab active" onclick="switchTab('foodb')">🔍 FooDB</div>
-  <div class="tab" onclick="switchTab('diet')">🥗 Diet</div>
-  <div class="tab" onclick="switchTab('gemma')">🤖 Gemma</div>
-  <div class="tab" onclick="switchTab('worker')">⏰ Worker</div>
+<!-- ═══ Server Status Card ═══ -->
+<div class="server-card">
+  <h2>🔌 Server Status</h2>
+  <div class="row"><span class="label">Status</span><span class="value" id="statusText">Checking...</span></div>
+  <div class="row"><span class="label">Version</span><span class="value" id="versionText">—</span></div>
+  <div class="row"><span class="label">IP Address</span><span class="value" id="ipText">—</span></div>
+  <div class="row"><span class="label">Port</span><span class="value" id="portText">7777</span></div>
+  <div class="row"><span class="label">Gemma Model</span><span class="value" id="gemmaText">—</span></div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════════════════ -->
-<!-- TAB 1: FooDB -->
-<!-- ═══════════════════════════════════════════════════════════════════ -->
-<div id="tab-foodb" class="tab-content active">
+<button class="ping-btn" id="pingBtn" onclick="ping()">🏓 Ping Server</button>
 
-  <div class="card">
-    <h3>🔍 Search Foods</h3>
-    <input id="foodb-query" placeholder="e.g. apple, rice, chicken" onkeydown="if(event.key==='Enter') searchFoods()">
-    <button class="btn btn-primary" onclick="searchFoods()">Search</button>
-    <div id="foodb-search-output" class="output">Results appear here...</div>
-  </div>
+<div class="output" id="pingOutput">Press "Ping Server" or wait for auto-ping...</div>
 
-  <div class="card">
-    <h3>📦 Food Details (Cache-First Read-Through)</h3>
-    <input id="foodb-id" type="number" placeholder="Enter food ID (e.g. 1, 42, 100)">
-    <div class="btn-row">
-      <button class="btn btn-primary btn-sm" onclick="getFoodDetails()">Fetch Details</button>
-    </div>
-    <div id="foodb-source" style="margin:4px 0;"></div>
-    <div id="foodb-detail-output" class="output">Result appears here...</div>
-  </div>
-
-  <div class="card">
-    <h3>🗂️ Food Groups</h3>
-    <button class="btn btn-secondary btn-sm" onclick="loadFoodGroups()">Load Groups</button>
-    <div id="foodb-groups-output" class="output">Groups appear here...</div>
-  </div>
-</div>
-
-<!-- ═══════════════════════════════════════════════════════════════════ -->
-<!-- TAB 2: Diet -->
-<!-- ═══════════════════════════════════════════════════════════════════ -->
-<div id="tab-diet" class="tab-content">
-
-  <div class="card">
-    <h3>👤 Profile & Goals</h3>
-    <input id="diet-goal" placeholder="Goal (e.g. lose weight, diabetes, muscle gain)">
-    <input id="diet-cal-target" type="number" placeholder="Daily calorie target">
-    <div class="btn-row">
-      <button class="btn btn-secondary btn-sm" onclick="fetchProfile()">Fetch Profile</button>
-      <button class="btn btn-primary btn-sm" onclick="saveProfile()">Save Profile</button>
-    </div>
-    <div id="diet-profile-output" class="output">Profile data appears here...</div>
-  </div>
-
-  <div class="card">
-    <h3>📊 Bio Record</h3>
-    <input id="diet-weight" type="number" step="0.1" placeholder="Weight (kg)">
-    <input id="diet-bodyfat" type="number" step="0.1" placeholder="Body fat %">
-    <button class="btn btn-primary btn-sm" onclick="recordBio()">Save Bio Record</button>
-    <div id="diet-bio-output" class="output">Bio record appears here...</div>
-  </div>
-
-  <div class="card">
-    <h3>🍽️ Meal Logging</h3>
-    <input id="diet-dishid" placeholder="Dish ID (optional)">
-    <div style="display:flex;gap:6px;">
-      <input id="diet-mealtype" placeholder="Meal type (e.g. Lunch)" style="flex:2">
-      <input id="diet-servings" type="number" step="0.5" value="1" style="flex:1">
-    </div>
-    <div class="btn-row">
-      <button class="btn btn-primary btn-sm" onclick="logMeal()">Log Meal</button>
-    </div>
-    <div id="diet-meal-output" class="output">Meal log appears here...</div>
-  </div>
-
-  <div class="card">
-    <h3>📜 History (7 days)</h3>
-    <button class="btn btn-secondary btn-sm" onclick="fetchHistory()">Load History</button>
-    <div id="diet-history-output" class="output">History appears here...</div>
-  </div>
-
-  <div class="card">
-    <h3>🔬 Nutrition & Validation</h3>
-    <input id="diet-analysis-dishid" placeholder="Dish ID to analyze">
-    <div class="btn-row">
-      <button class="btn btn-primary btn-sm" onclick="analyzeDish()">Analyze</button>
-    </div>
-    <div id="diet-nutrition-output" class="output">Nutrition data appears here...</div>
+<!-- ═══ Quick Endpoint Reference ═══ -->
+<div class="server-card">
+  <h2>📡 REST Endpoints</h2>
+  <p style="font-size:12px;color:#888;margin-bottom:10px;">All services are exposed via HTTP at <code style="color:#4CAF50;">http://&lt;phone-ip&gt;:7777</code></p>
+  <div class="endpoints">
+    <span class="endpoint"><span>GET</span> /ping</span>
+    <span class="endpoint"><span>GET</span> /api/v1/health</span>
+    <span class="endpoint"><span>GET</span> /api/v1/foodb/search?q=</span>
+    <span class="endpoint"><span>GET</span> /api/v1/foodb/food/{id}</span>
+    <span class="endpoint"><span>GET</span> /api/v1/diet/profile/{userId}</span>
+    <span class="endpoint"><span>PUT</span> /api/v1/diet/profile</span>
+    <span class="endpoint"><span>POST</span> /api/v1/diet/meal</span>
+    <span class="endpoint"><span>POST</span> /api/v1/gemma/ask</span>
+    <span class="endpoint"><span>POST</span> /api/v1/gemma/compute-recipe</span>
+    <span class="endpoint"><span>POST</span> /api/v1/worker/trigger-daily-suggestion</span>
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════════════════ -->
-<!-- TAB 3: Gemma -->
-<!-- ═══════════════════════════════════════════════════════════════════ -->
-<div id="tab-gemma" class="tab-content">
+<!-- ═══ Quick Test Controls ═══ -->
+<div class="section">
+  <h3>🧪 Quick Test</h3>
 
-  <div class="card">
-    <h3>📦 Model Lifecycle</h3>
-    <div class="btn-row">
-      <button class="btn btn-primary btn-sm" onclick="loadModel()">Load Model</button>
-      <button class="btn btn-danger btn-sm" onclick="releaseModel()">Release</button>
-      <button class="btn btn-secondary btn-sm" onclick="checkModelLoaded()">Check Status</button>
+  <!-- FooDB -->
+  <div class="server-card">
+    <h3>🔍 FooDB</h3>
+    <div class="input-group">
+      <input id="foodb-query" placeholder="Search foods..." onkeydown="if(event.key==='Enter') searchFood()">
+      <button class="btn btn-green btn-sm" onclick="searchFood()">Go</button>
     </div>
-    <div id="gemma-model-output" class="output">Model status appears here...</div>
+    <div class="output" id="foodbOutput">Search results...</div>
   </div>
 
-  <div class="card">
-    <h3>🍳 Compute Recipe</h3>
-    <textarea id="gemma-recipe-prompt" style="width:100%;padding:10px;background:#16213e;border:1px solid #2a2a4a;border-radius:8px;color:#e0e0e0;font-size:14px;margin-bottom:8px;min-height:60px;font-family:inherit;" placeholder="e.g. Suggest a low-sugar breakfast for someone with diabetes"></textarea>
-    <button class="btn btn-primary btn-sm" onclick="computeRecipe()">Compute Recipe</button>
-    <div id="gemma-recipe-output" class="output">Recipe appears here...</div>
+  <!-- Diet -->
+  <div class="server-card">
+    <h3>🥗 Diet Profile</h3>
+    <div class="input-group">
+      <input id="diet-userid" placeholder="User ID" value="demo-user">
+      <button class="btn btn-sm" onclick="getProfile()">Fetch</button>
+    </div>
+    <div class="output" id="dietOutput">Profile data...</div>
   </div>
 
-  <div class="card">
-    <h3>💬 Ask Question</h3>
-    <textarea id="gemma-question" style="width:100%;padding:10px;background:#16213e;border:1px solid #2a2a4a;border-radius:8px;color:#e0e0e0;font-size:14px;margin-bottom:8px;min-height:60px;font-family:inherit;" placeholder="e.g. Can I drink coca-cola with diabetes?"></textarea>
-    <button class="btn btn-primary btn-sm" onclick="askQuestion()">Ask</button>
-    <div id="gemma-answer-output" class="output">Answer appears here...</div>
-  </div>
-</div>
-
-<!-- ═══════════════════════════════════════════════════════════════════ -->
-<!-- TAB 4: Worker -->
-<!-- ═══════════════════════════════════════════════════════════════════ -->
-<div id="tab-worker" class="tab-content">
-
-  <div class="card">
-    <h3>🚀 Force Run Daily Suggestion Worker</h3>
-    <p style="font-size:13px;color:#888;margin-bottom:10px;">
-      Triggers the full suggestion pipeline: loads Gemma model, generates a personalised
-      dish suggestion using user profile context, logs it as a DishHistory entry.
-    </p>
-    <button class="btn btn-warning btn-sm" onclick="forceRunWorker()">Force Run Worker</button>
-    <div id="worker-output" class="output">Worker result appears here...</div>
-  </div>
-
-  <div class="card" style="background:#1a1a2e;">
-    <h3>ℹ️ About the Daily Suggestion Worker</h3>
-    <p style="font-size:12px;color:#888;line-height:1.6;">
-      The DailySuggestionWorker is scheduled as a PeriodicWorkRequest running daily.
-      It loads users from DietDB, fetches their Profile + BioRecord + 7 days of DishHistory,
-      builds a personalised prompt, calls GemmaAndroidService.computeRecipe(),
-      logs the suggestion, and posts an event for the bridge layer.
-    </p>
+  <!-- Gemma -->
+  <div class="server-card">
+    <h3>🤖 Gemma</h3>
+    <div class="input-group">
+      <input id="gemma-question" placeholder="Ask a nutrition question...">
+      <button class="btn btn-orange btn-sm" onclick="askGemma()">Ask</button>
+    </div>
+    <div class="output" id="gemmaOutput">Answer...</div>
   </div>
 </div>
 
 <script>
-const USER_ID = 'demo-user-1';
-const TODAY = new Date().toISOString().slice(0, 10);
+const API = 'http://127.0.0.1:7777';
 
-// ── Tab switching ──────────────────────────────────────────────────────
-function switchTab(tab) {
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-  document.querySelector(`.tab[onclick*="${tab}"]`).classList.add('active');
-  document.getElementById(`tab-${tab}`).classList.add('active');
+// ── Auto-ping on load ──────────────────────────────────────────────
+ping();
+
+// ── Ping ───────────────────────────────────────────────────────────
+async function ping() {
+  const btn = document.getElementById('pingBtn');
+  const out = document.getElementById('pingOutput');
+  btn.disabled = true;
+  btn.textContent = '⏳ Pinging...';
+  out.innerHTML = '<span class="info">Pinging /ping...</span>';
+
+  try {
+    const res = await fetch(API + '/ping');
+    const data = await res.json();
+    out.innerHTML = '<span class="ok">✅ Ping succeeded!</span>\n' + JSON.stringify(data, null, 2);
+    btn.textContent = '🏓 Ping Server';
+
+    // Also fetch health
+    const healthRes = await fetch(API + '/api/v1/health');
+    const health = await healthRes.json();
+    updateStatus(health);
+  } catch (e) {
+    out.innerHTML = '<span class="err">❌ Ping failed:</span> ' + e.message;
+    btn.textContent = '🏓 Ping Server';
+    setOffline();
+  }
+  btn.disabled = false;
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────
-function handleResult(el, jsonStr) {
-  const data = JSON.parse(jsonStr);
-  if (data.ok) {
-    el.innerHTML = '<span class="success">✅ Success:</span>\n' + syntaxHighlight(data.data);
-  } else {
-    el.innerHTML = '<span class="error">❌ Error:</span> ' + (data.error || 'Unknown error');
+function updateStatus(health) {
+  document.getElementById('statusDot').className = 'dot online';
+  document.getElementById('statusText').textContent = 'Online';
+  document.getElementById('statusText').className = 'value ok';
+  document.getElementById('versionText').textContent = health.version || '—';
+  document.getElementById('ipText').textContent = health.ipAddress || '—';
+  document.getElementById('portText').textContent = health.port || '7777';
+  document.getElementById('gemmaText').textContent = health.gemmaLoaded ? '🟢 Loaded' : '🔴 Not loaded';
+}
+
+function setOffline() {
+  document.getElementById('statusDot').className = 'dot offline';
+  document.getElementById('statusText').textContent = 'Offline';
+  document.getElementById('statusText').className = 'value err';
+  document.getElementById('versionText').textContent = '—';
+  document.getElementById('ipText').textContent = '—';
+  document.getElementById('gemmaText').textContent = '—';
+}
+
+// ── FooDB ──────────────────────────────────────────────────────────
+async function searchFood() {
+  const q = document.getElementById('foodb-query').value.trim();
+  if (!q) return;
+  const el = document.getElementById('foodbOutput');
+  el.innerHTML = '<span class="info">Searching...</span>';
+  try {
+    const res = await fetch(API + '/api/v1/foodb/search?q=' + encodeURIComponent(q));
+    const data = await res.json();
+    el.innerHTML = JSON.stringify(data, null, 2);
+  } catch (e) {
+    el.innerHTML = '<span class="err">Error:</span> ' + e.message;
   }
 }
 
-function handleError(el, err) {
-  el.innerHTML = '<span class="error">❌ Error:</span> ' + (err.message || String(err));
+// ── Diet ───────────────────────────────────────────────────────────
+async function getProfile() {
+  const userId = document.getElementById('diet-userid').value.trim() || 'demo-user';
+  const el = document.getElementById('dietOutput');
+  el.innerHTML = '<span class="info">Fetching...</span>';
+  try {
+    const res = await fetch(API + '/api/v1/diet/profile/' + encodeURIComponent(userId));
+    const data = await res.json();
+    el.innerHTML = JSON.stringify(data, null, 2);
+  } catch (e) {
+    el.innerHTML = '<span class="err">Error:</span> ' + e.message;
+  }
 }
 
-function syntaxHighlight(obj) {
-  const json = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2);
-  return json;
-}
-
-// ── FooDB ──────────────────────────────────────────────────────────────
-let lastFetchedFoodId = null;
-let lastFetchedFoodResult = null;
-
-function searchFoods() {
-  const q = document.getElementById('foodb-query').value.trim();
+// ── Gemma ──────────────────────────────────────────────────────────
+async function askGemma() {
+  const q = document.getElementById('gemma-question').value.trim();
   if (!q) return;
-  const el = document.getElementById('foodb-search-output');
-  el.innerHTML = '<span class="loading">Searching...</span>';
+  const el = document.getElementById('gemmaOutput');
+  el.innerHTML = '<span class="info">Asking Gemma...</span>';
   try {
-    const result = TomadyBridge.searchFood(q);
-    handleResult(el, result);
-  } catch(e) { handleError(el, e); }
-}
-
-function getFoodDetails() {
-  const id = parseInt(document.getElementById('foodb-id').value);
-  if (!id) return;
-  const el = document.getElementById('foodb-detail-output');
-  const srcEl = document.getElementById('foodb-source');
-  el.innerHTML = '<span class="loading">Fetching...</span>';
-  srcEl.innerHTML = '';
-  try {
-    const result = TomadyBridge.getFoodDetails(id);
-    const data = JSON.parse(result);
-    if (data.ok) {
-      // Determine cache source
-      const isRepeat = lastFetchedFoodId === id;
-      if (isRepeat) {
-        srcEl.innerHTML = '<span class="badge badge-local">📦 Source: Local DB Cache</span>';
-      } else {
-        srcEl.innerHTML = '<span class="badge badge-remote">🌐 Source: Remote FooDB API</span>';
-      }
-      lastFetchedFoodId = id;
-      lastFetchedFoodResult = data.data;
-      el.innerHTML = '<span class="success">✅ Success:</span>\n' + syntaxHighlight(data.data);
-    } else {
-      el.innerHTML = '<span class="error">❌ Error:</span> ' + (data.error || 'Not found');
-    }
-  } catch(e) { handleError(el, e); }
-}
-
-function loadFoodGroups() {
-  const el = document.getElementById('foodb-groups-output');
-  el.innerHTML = '<span class="loading">Loading...</span>';
-  try {
-    const result = TomadyBridge.getFoodGroups();
-    handleResult(el, result);
-  } catch(e) { handleError(el, e); }
-}
-
-// ── Diet ───────────────────────────────────────────────────────────────
-function fetchProfile() {
-  const el = document.getElementById('diet-profile-output');
-  el.innerHTML = '<span class="loading">Fetching...</span>';
-  try {
-    // Ensure user exists
-    TomadyBridge.createUser(JSON.stringify({id: USER_ID, username: 'DemoUser', email: 'demo@tomady.app'}));
-    const result = TomadyBridge.getProfile(USER_ID);
-    handleResult(el, result);
-  } catch(e) { handleError(el, e); }
-}
-
-function saveProfile() {
-  const el = document.getElementById('diet-profile-output');
-  const goal = document.getElementById('diet-goal').value;
-  const calTarget = document.getElementById('diet-cal-target').value;
-  el.innerHTML = '<span class="loading">Saving...</span>';
-  try {
-    const params = { userId: USER_ID };
-    if (goal) params.goal = goal;
-    if (calTarget) params.dailyCalorieTarget = parseInt(calTarget);
-    const result = TomadyBridge.updateProfile(JSON.stringify(params));
-    handleResult(el, result);
-  } catch(e) { handleError(el, e); }
-}
-
-function recordBio() {
-  const el = document.getElementById('diet-bio-output');
-  const weight = document.getElementById('diet-weight').value;
-  const bf = document.getElementById('diet-bodyfat').value;
-  el.innerHTML = '<span class="loading">Recording...</span>';
-  try {
-    const params = { userId: USER_ID, date: TODAY };
-    if (weight) params.weightKg = parseFloat(weight);
-    if (bf) params.bodyFatPercentage = parseFloat(bf);
-    const result = TomadyBridge.recordBio(JSON.stringify(params));
-    handleResult(el, result);
-  } catch(e) { handleError(el, e); }
-}
-
-function logMeal() {
-  const el = document.getElementById('diet-meal-output');
-  const dishId = document.getElementById('diet-dishid').value;
-  const mealType = document.getElementById('diet-mealtype').value || 'Lunch';
-  const servings = parseFloat(document.getElementById('diet-servings').value) || 1;
-  el.innerHTML = '<span class="loading">Logging...</span>';
-  try {
-    const params = { userId: USER_ID, dishId: dishId || null, date: TODAY, mealType, servings, notes: 'Logged from WebView demo' };
-    const result = TomadyBridge.logMeal(JSON.stringify(params));
-    handleResult(el, result);
-  } catch(e) { handleError(el, e); }
-}
-
-function fetchHistory() {
-  const el = document.getElementById('diet-history-output');
-  const weekAgo = new Date(Date.now() - 7*86400000).toISOString().slice(0, 10);
-  el.innerHTML = '<span class="loading">Loading...</span>';
-  try {
-    const result = TomadyBridge.getHistoryRange(USER_ID, weekAgo, TODAY);
-    handleResult(el, result);
-  } catch(e) { handleError(el, e); }
-}
-
-function analyzeDish() {
-  const el = document.getElementById('diet-nutrition-output');
-  const dishId = document.getElementById('diet-analysis-dishid').value.trim();
-  if (!dishId) return;
-  el.innerHTML = '<span class="loading">Analyzing...</span>';
-  try {
-    const nutritionResult = TomadyBridge.getDishNutrition(dishId);
-    const nutrition = JSON.parse(nutritionResult);
-    if (nutrition.ok && nutrition.data) {
-      let html = '<span class="success">✅ Nutrition Summary:</span>\n';
-      html += 'Calories: ' + nutrition.data.totalCalories?.toFixed(0) + ' kcal\n';
-      html += 'Protein: ' + nutrition.data.totalProteinG?.toFixed(1) + 'g\n';
-      html += 'Carbs: ' + nutrition.data.totalCarbsG?.toFixed(1) + 'g\n';
-      html += 'Fat: ' + nutrition.data.totalFatG?.toFixed(1) + 'g\n';
-      html += 'Fiber: ' + nutrition.data.totalFiberG?.toFixed(1) + 'g\n';
-      html += 'Sugar: ' + nutrition.data.totalSugarG?.toFixed(1) + 'g\n';
-      html += 'Sodium: ' + nutrition.data.totalSodiumMg?.toFixed(0) + 'mg\n';
-
-      // Also validate
-      const valResult = TomadyBridge.validateDish(dishId, USER_ID);
-      const val = JSON.parse(valResult);
-      if (val.ok && val.data) {
-        html += '\n🛡️ <span class="' + (val.data.isCompatible ? 'success' : 'error') + '">' +
-                (val.data.isCompatible ? '✅ Compatible with profile' : '⚠️ Has warnings') + '</span>\n';
-        if (val.data.warnings && val.data.warnings.length) {
-          val.data.warnings.forEach(w => { html += '  • ' + w + '\n'; });
-        }
-      }
-      el.innerHTML = html;
-    } else {
-      el.innerHTML = '<span class="error">❌ Error:</span> ' + (nutrition.error || 'Analysis failed');
-    }
-  } catch(e) { handleError(el, e); }
-}
-
-// ── Gemma ──────────────────────────────────────────────────────────────
-function loadModel() {
-  const el = document.getElementById('gemma-model-output');
-  el.innerHTML = '<span class="loading">Loading model...</span>';
-  try {
-    const result = TomadyBridge.loadModel();
-    handleResult(el, result);
-  } catch(e) { handleError(el, e); }
-}
-
-function releaseModel() {
-  const el = document.getElementById('gemma-model-output');
-  el.innerHTML = '<span class="loading">Releasing...</span>';
-  try {
-    const result = TomadyBridge.releaseModel();
-    handleResult(el, result);
-  } catch(e) { handleError(el, e); }
-}
-
-function checkModelLoaded() {
-  const el = document.getElementById('gemma-model-output');
-  try {
-    const result = TomadyBridge.isModelLoaded();
-    handleResult(el, result);
-  } catch(e) { handleError(el, e); }
-}
-
-function computeRecipe() {
-  const el = document.getElementById('gemma-recipe-output');
-  const prompt = document.getElementById('gemma-recipe-prompt').value.trim();
-  if (!prompt) return;
-  el.innerHTML = '<span class="loading">Computing recipe...</span>';
-  try {
-    const result = TomadyBridge.computeRecipe(prompt, USER_ID);
-    const data = JSON.parse(result);
-    if (data.ok && data.data) {
-      let html = '<span class="success">✅ Recipe Result:</span>\n';
-      html += 'Dish: ' + data.data.dishName + '\n';
-      html += 'Dish ID: ' + data.data.dishId + '\n';
-      html += 'Recipe ID: ' + data.data.recipeId + '\n';
-      html += '\n🛡️ ' + (data.data.isCompatible ? '✅ Compatible' : '⚠️ Warnings') + '\n';
-      if (data.data.warnings && data.data.warnings.length) {
-        data.data.warnings.forEach(w => { html += '  • ' + w + '\n'; });
-      }
-      html += '\n<span class="info">Raw response:</span>\n' + (data.data.rawResponse?.slice(0, 500) || '');
-      el.innerHTML = html;
-    } else {
-      el.innerHTML = '<span class="error">❌ Error:</span> ' + (data.error || 'Compute failed');
-    }
-  } catch(e) { handleError(el, e); }
-}
-
-function askQuestion() {
-  const el = document.getElementById('gemma-answer-output');
-  const question = document.getElementById('gemma-question').value.trim();
-  if (!question) return;
-  el.innerHTML = '<span class="loading">Thinking...</span>';
-  try {
-    const result = TomadyBridge.askQuestion(question, USER_ID);
-    const data = JSON.parse(result);
-    if (data.ok && data.data) {
-      let html = '<span class="success">✅ Answer:</span>\n';
-      html += data.data.answer + '\n';
-      if (data.data.referencedDishName) {
-        html += '\n<span class="info">Referenced dish:</span> ' + data.data.referencedDishName;
-      }
-      el.innerHTML = html;
-    } else {
-      el.innerHTML = '<span class="error">❌ Error:</span> ' + (data.error || 'Question failed');
-    }
-  } catch(e) { handleError(el, e); }
-}
-
-// ── Worker ─────────────────────────────────────────────────────────────
-function forceRunWorker() {
-  const el = document.getElementById('worker-output');
-  el.innerHTML = '<span class="loading">Running worker pipeline...</span>';
-
-  try {
-    // Step 1: Load model
-    const loadResult = JSON.parse(TomadyBridge.loadModel());
-    if (!loadResult.ok) { el.innerHTML = '<span class="error">❌ Model load failed</span>'; return; }
-
-    // Step 2: Generate suggestion
-    const prompt = 'Generate a healthy meal suggestion for today. Suggest a balanced dish with good protein, fiber, and healthy fats.';
-    const recipeResult = TomadyBridge.computeRecipe(prompt, USER_ID);
-    const recipe = JSON.parse(recipeResult);
-
-    if (recipe.ok && recipe.data) {
-      // Step 3: Log the meal as suggestion
-      const logParams = {
-        userId: USER_ID,
-        dishId: recipe.data.dishId,
-        date: TODAY,
-        mealType: 'suggestion',
-        servings: 1,
-        notes: 'Daily suggestion — ' + recipe.data.dishName
-      };
-      TomadyBridge.logMeal(JSON.stringify(logParams));
-
-      // Step 4: Release model
-      TomadyBridge.releaseModel();
-
-      let html = '<span class="success">✅ Worker completed!</span>\n';
-      html += 'Suggested dish: ' + recipe.data.dishName + '\n';
-      html += 'Dish ID: ' + recipe.data.dishId + '\n';
-      html += '\n🛡️ ' + (recipe.data.isCompatible ? '✅ Compatible with profile' : '⚠️ Warnings') + '\n';
-      if (recipe.data.warnings && recipe.data.warnings.length) {
-        recipe.data.warnings.forEach(w => { html += '  • ' + w + '\n'; });
-      }
-      el.innerHTML = html;
-    } else {
-      el.innerHTML = '<span class="error">❌ Recipe generation failed</span>';
-      TomadyBridge.releaseModel();
-    }
-  } catch(e) { handleError(el, e); }
+    const res = await fetch(API + '/api/v1/gemma/ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: q, userId: 'demo-user' })
+    });
+    const data = await res.json();
+    el.innerHTML = JSON.stringify(data, null, 2);
+  } catch (e) {
+    el.innerHTML = '<span class="err">Error:</span> ' + e.message;
+  }
 }
 </script>
 </body>

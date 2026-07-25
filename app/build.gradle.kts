@@ -78,9 +78,6 @@ dependencies {
     // JSON
     implementation("com.google.code.gson:gson:2.10.1")
 
-    // HTTP server for local OpenAPI endpoint exposure
-    implementation("org.nanohttpd:nanohttpd:2.3.1")
-
     // AppCompat (for DemoActivity)
     implementation("androidx.appcompat:appcompat:1.6.1")
 
