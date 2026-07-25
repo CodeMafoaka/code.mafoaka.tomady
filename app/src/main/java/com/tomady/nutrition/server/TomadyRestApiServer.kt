@@ -3,6 +3,7 @@ package com.tomady.nutrition.server
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import com.tomady.nutrition.BuildConfig
 import com.tomady.nutrition.data.local.diet.DietDatabase
 import com.tomady.nutrition.data.local.diet.entity.BioRecord
 import com.tomady.nutrition.data.local.diet.entity.Dish

@@ -37,7 +37,7 @@ import com.tomady.nutrition.data.local.foodb.entity.NutrientProperty
         DishHistory::class
     ],
     version = 1,
-    exportSchema = true
+    exportSchema = false
 )
 abstract class DietDatabase : RoomDatabase() {
 
@@ -62,7 +62,7 @@ abstract class DietDatabase : RoomDatabase() {
         NutrientProperty::class
     ],
     version = 1,
-    exportSchema = true
+    exportSchema = false
 )
 abstract class FooDBDatabase : RoomDatabase() {
 
