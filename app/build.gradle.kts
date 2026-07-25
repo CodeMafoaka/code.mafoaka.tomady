@@ -74,12 +74,9 @@ dependencies {
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 
-    // React Native bridge (compileOnly — not bundled in APK, provided by host at runtime)
-    compileOnly("com.facebook.react:react-native:0.73.6") {
-        // Exclude transitive deps we don't need (Fresco, Flipper, etc.)
-        isTransitive = false
-    }
-
     // JSON
     implementation("com.google.code.gson:gson:2.10.1")
+
+    // AppCompat (for DemoActivity)
+    implementation("androidx.appcompat:appcompat:1.6.1")
 }

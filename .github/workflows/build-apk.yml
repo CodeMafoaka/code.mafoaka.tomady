@@ -8,51 +8,25 @@ env:
   JAVA_VERSION: "17"
   ANDROID_COMPILE_SDK: "34"
   ANDROID_BUILD_TOOLS: "34.0.0"
-  NODE_VERSION: "20"
-
-# ── Base setup shared by all jobs ────────────────────────────────────────
-
-defaults:
-  run:
-    shell: bash
-
-# ══════════════════════════════════════════════════════════════════════════
-# Job 1 — Services-only APK (no RN bundle, no Node needed)
-# ══════════════════════════════════════════════════════════════════════════
 
 jobs:
   build-services:
     name: 📦 Services APK
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
-
       - name: Set up JDK ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v4
         with:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: "temurin"
-
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
           api-level: ${{ env.ANDROID_COMPILE_SDK }}
           build-tools: ${{ env.ANDROID_BUILD_TOOLS }}
-
-      - name: Set up Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      # Need npm install for compileOnly react-native AAR resolution
-      - name: Install demo dependencies
-        working-directory: ./demo
-        run: npm install
-
       - name: Build services APK
         run: ./gradlew assembleServicesDebug --no-daemon --stacktrace
-
       - name: Upload services APK
         uses: actions/upload-artifact@v4
         with:
@@ -61,58 +35,23 @@ jobs:
           compression-level: 0
           if-no-files-found: warn
 
-  # ════════════════════════════════════════════════════════════════════════
-  # Job 2 — Demo GUI APK (includes RN bundle)
-  # ════════════════════════════════════════════════════════════════════════
-
   build-demo:
     name: 🖥️ Demo GUI APK
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
-
       - name: Set up JDK ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v4
         with:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: "temurin"
-
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
           api-level: ${{ env.ANDROID_COMPILE_SDK }}
           build-tools: ${{ env.ANDROID_BUILD_TOOLS }}
-
-      - name: Set up Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Install demo dependencies
-        working-directory: ./demo
-        run: npm install
-
-      - name: Bundle React Native JS
-        working-directory: ./demo
-        run: |
-          mkdir -p /tmp/rn-bundle
-          npx react-native bundle \
-            --platform android \
-            --dev false \
-            --entry-file index.js \
-            --bundle-output /tmp/rn-bundle/index.android.bundle \
-            --assets-dest /tmp/rn-bundle/res/
-
-      - name: Copy RN bundle into demo flavor assets
-        run: |
-          mkdir -p app/src/demo/assets
-          cp /tmp/rn-bundle/index.android.bundle app/src/demo/assets/
-          cp -r /tmp/rn-bundle/res/* app/src/demo/res/ 2>/dev/null || true
-
       - name: Build demo APK
         run: ./gradlew assembleDemoDebug --no-daemon --stacktrace
-
       - name: Upload demo APK
         uses: actions/upload-artifact@v4
         with:
@@ -121,58 +60,23 @@ jobs:
           compression-level: 0
           if-no-files-found: warn
 
-  # ════════════════════════════════════════════════════════════════════════
-  # Job 3 — Full APK (services + demo GUI combined)
-  # ════════════════════════════════════════════════════════════════════════
-
   build-full:
     name: 🧩 Full APK (both)
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
-
       - name: Set up JDK ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v4
         with:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: "temurin"
-
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
           api-level: ${{ env.ANDROID_COMPILE_SDK }}
           build-tools: ${{ env.ANDROID_BUILD_TOOLS }}
-
-      - name: Set up Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Install demo dependencies
-        working-directory: ./demo
-        run: npm install
-
-      - name: Bundle React Native JS
-        working-directory: ./demo
-        run: |
-          mkdir -p /tmp/rn-bundle
-          npx react-native bundle \
-            --platform android \
-            --dev false \
-            --entry-file index.js \
-            --bundle-output /tmp/rn-bundle/index.android.bundle \
-            --assets-dest /tmp/rn-bundle/res/
-
-      - name: Copy RN bundle into full flavor assets
-        run: |
-          mkdir -p app/src/full/assets
-          cp /tmp/rn-bundle/index.android.bundle app/src/full/assets/
-          cp -r /tmp/rn-bundle/res/* app/src/full/res/ 2>/dev/null || true
-
       - name: Build full APK
         run: ./gradlew assembleFullDebug --no-daemon --stacktrace
-
       - name: Upload full APK
         uses: actions/upload-artifact@v4
         with:

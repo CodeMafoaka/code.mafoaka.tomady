@@ -9,6 +9,17 @@
         android:label="@string/app_name"
         android:supportsRtl="true">
 
+        <!-- Demo WebView Activity -->
+        <activity
+            android:name=".demo.DemoActivity"
+            android:exported="true"
+            android:label="Tomady Demo">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
         <!-- Workers are registered programmatically -->
         <service
             android:name="androidx.work.impl.WorkManagerService"
