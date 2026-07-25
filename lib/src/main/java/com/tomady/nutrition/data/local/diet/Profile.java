@@ -11,6 +11,8 @@ public class Profile {
     private int age;
     private double height;
     private double weight;
+    private String allergies;
+    private String diseases;
 
     public Profile() {}
 
@@ -24,4 +26,8 @@ public class Profile {
     public void setHeight(double height) { this.height = height; }
     public double getWeight() { return weight; }
     public void setWeight(double weight) { this.weight = weight; }
+    public String getAllergies() { return allergies; }
+    public void setAllergies(String allergies) { this.allergies = allergies; }
+    public String getDiseases() { return diseases; }
+    public void setDiseases(String diseases) { this.diseases = diseases; }
 }

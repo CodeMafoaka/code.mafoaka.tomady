@@ -36,6 +36,9 @@ public interface DietDao {
     @Query("SELECT * FROM profiles WHERE id = :id")
     Profile getProfileById(int id);
 
+    @Query("SELECT * FROM profiles WHERE userId = :userId")
+    Profile getProfileByUserId(int userId);
+
     @Query("SELECT * FROM profiles")
     List<Profile> getAllProfiles();
 
@@ -50,6 +53,9 @@ public interface DietDao {
 
     @Query("SELECT * FROM bio_records WHERE id = :id")
     BioRecord getBioRecordById(int id);
+
+    @Query("SELECT * FROM bio_records WHERE profileId = :profileId")
+    List<BioRecord> getBioRecordsByProfileId(int profileId);
 
     @Query("SELECT * FROM bio_records")
     List<BioRecord> getAllBioRecords();
@@ -96,6 +102,9 @@ public interface DietDao {
     @Query("SELECT * FROM recipe_ingredients WHERE id = :id")
     RecipeIngredient getRecipeIngredientById(int id);
 
+    @Query("SELECT * FROM recipe_ingredients WHERE recipeId = :recipeId")
+    List<RecipeIngredient> getRecipeIngredientsByRecipeId(int recipeId);
+
     @Query("SELECT * FROM recipe_ingredients")
     List<RecipeIngredient> getAllRecipeIngredients();
 
@@ -110,6 +119,9 @@ public interface DietDao {
 
     @Query("SELECT * FROM dish_history WHERE id = :id")
     DishHistory getDishHistoryById(int id);
+
+    @Query("SELECT * FROM dish_history WHERE userId = :userId")
+    List<DishHistory> getDishHistoryByUserId(int userId);
 
     @Query("SELECT * FROM dish_history")
     List<DishHistory> getAllDishHistory();

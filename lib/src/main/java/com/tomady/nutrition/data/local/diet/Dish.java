@@ -9,6 +9,7 @@ public class Dish {
     private int id;
     private String name;
     private double calories;
+    private int recipeId;
 
     public Dish() {}
 
@@ -18,4 +19,6 @@ public class Dish {
     public void setName(String name) { this.name = name; }
     public double getCalories() { return calories; }
     public void setCalories(double calories) { this.calories = calories; }
+    public int getRecipeId() { return recipeId; }
+    public void setRecipeId(int recipeId) { this.recipeId = recipeId; }
 }
