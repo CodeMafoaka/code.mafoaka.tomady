@@ -8,6 +8,7 @@ import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.bridge.WritableArray
 import com.facebook.react.bridge.WritableMap
+import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.tomady.nutrition.data.AppDatabase
 import com.tomady.nutrition.data.local.diet.DietDatabase
 import com.tomady.nutrition.data.local.foodb.FooDBLocalDatabase
@@ -17,9 +18,14 @@ import com.tomady.nutrition.service.diet.DietAPIService
 import com.tomady.nutrition.service.diet.NutritionSummary
 import com.tomady.nutrition.service.diet.ProfileValidationResult
 import com.tomady.nutrition.service.foodb.FooDBDataAPIService
+import com.tomady.nutrition.worker.SuggestionEvent
+import com.tomady.nutrition.worker.SuggestionEventBus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.IOException
@@ -38,6 +44,11 @@ class DietModule(reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {
 
     private val moduleScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var suggestionObserverJob: Job? = null
+
+    private val eventEmitter: DeviceEventManagerModule.RCTDeviceEventEmitter?
+        get() = reactApplicationContext
+            .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
 
     private val service: DietAPIService by lazy {
         val db = AppDatabase.getInstance(reactContext.applicationContext)
@@ -574,6 +585,111 @@ class DietModule(reactContext: ReactApplicationContext) :
     // Error Handling
     // ══════════════════════════════════════════════════════════════════════
 
+    // ══════════════════════════════════════════════════════════════════════
+    // Suggestion Event Observation
+    // ══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Starts observing [SuggestionEventBus] for new daily suggestions.
+     *
+     * When a new [SuggestionEvent] is posted by the [DailySuggestionWorker],
+     * this method emits a `"DailySuggestion"` event via [DeviceEventEmitter]
+     * with the following payload:
+     * ```json
+     * {
+     *   "userId": "...",
+     *   "dishId": "...",
+     *   "dishName": "...",
+     *   "date": "2026-07-25",
+     *   "isCompatible": true,
+     *   "warnings": []
+     * }
+     * ```
+     *
+     * Call this from the RN host once on mount (or on app foreground) to
+     * receive real-time notifications without polling.
+     */
+    @ReactMethod
+    fun startSuggestionObserver() {
+        // Cancel any existing observer to avoid duplicate subscriptions
+        suggestionObserverJob?.cancel()
+
+        suggestionObserverJob = moduleScope.launch {
+            SuggestionEventBus.events
+                .catch { e ->
+                    emitError("DailySuggestion", e.message ?: "Suggestion observation error")
+                }
+                .collect { event ->
+                    emitSuggestionEvent(event)
+                }
+        }
+    }
+
+    /**
+     * Stops observing suggestion events. Call this when the RN host navigates
+     * away from the suggestion UI or on app background.
+     */
+    @ReactMethod
+    fun stopSuggestionObserver() {
+        suggestionObserverJob?.cancel()
+        suggestionObserverJob = null
+    }
+
+    /**
+     * Checks for any pending (already-emitted) suggestions without starting
+     * a long-lived observer. Useful for a one-time check on app launch.
+     *
+     * @param promise Resolves with a WritableArray of pending suggestion events
+     *                (empty array if none), or rejects on error.
+     */
+    @ReactMethod
+    fun checkPendingSuggestions(promise: Promise) {
+        // Since SuggestionEventBus has replay=0, there are no "pending" events.
+        // The recommended approach is to call startSuggestionObserver() on mount
+        // and receive events as they arrive.
+        // For apps that need polling, query dish_history with meal_type="suggestion"
+        // for today's date via getDishHistory or getHistory.
+        promise.resolve(Arguments.createArray())
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // Event Emitters
+    // ══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Emits a [SuggestionEvent] to the React Native JS thread via
+     * [DeviceEventEmitter] as a `"DailySuggestion"` event.
+     */
+    private fun emitSuggestionEvent(event: SuggestionEvent) {
+        val eventMap = Arguments.createMap().apply {
+            putString("userId", event.userId)
+            putString("dishId", event.dishId)
+            putString("dishName", event.dishName)
+            putString("date", event.date)
+            putBoolean("isCompatible", event.isCompatible)
+            val warningsArray = Arguments.createArray()
+            for (warning in event.warnings) {
+                warningsArray.pushString(warning)
+            }
+            putArray("warnings", warningsArray)
+        }
+        eventEmitter?.emit("DailySuggestion", eventMap)
+    }
+
+    /**
+     * Emits an error event to the React Native JS thread.
+     */
+    private fun emitError(eventName: String, errorMessage: String) {
+        val errorMap = Arguments.createMap().apply {
+            putString("error", errorMessage)
+        }
+        eventEmitter?.emit(eventName, errorMap)
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // Error Handling
+    // ══════════════════════════════════════════════════════════════════════
+
     private fun handleError(code: String, error: Exception, promise: Promise) {
         when (error) {
             is IOException -> {
@@ -583,5 +699,14 @@ class DietModule(reactContext: ReactApplicationContext) :
                 promise.reject(code, error.message ?: "An unexpected error occurred", error)
             }
         }
+    }
+
+    /**
+     * Cleans up resources when the module is destroyed.
+     */
+    override fun onCatalystInstanceDestroy() {
+        super.onCatalystInstanceDestroy()
+        suggestionObserverJob?.cancel()
+        moduleScope.cancel()
     }
 }
