@@ -1,8 +1,8 @@
-name: Build Debug APK
+name: Build APK
 
 on:
   push:
-  workflow_dispatch:  # allow manual trigger from GitHub UI
+  workflow_dispatch:
 
 env:
   JAVA_VERSION: "17"
@@ -12,7 +12,7 @@ env:
 
 jobs:
   build:
-    name: Build Debug APK
+    name: Build APK
     runs-on: ubuntu-latest
 
     steps:
@@ -40,11 +40,12 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      # ── Install demo RN dependencies and bundle JS ───────────────────
+      # ── Install demo RN dependencies ─────────────────────────────────
       - name: Install demo dependencies
         working-directory: ./demo
         run: npm install
 
+      # ── Bundle React Native JS ───────────────────────────────────────
       - name: Bundle React Native JS (Android)
         working-directory: ./demo
         run: |
@@ -52,18 +53,52 @@ jobs:
             --platform android \
             --dev false \
             --entry-file index.js \
-            --bundle-output ../app/src/main/assets/index.android.bundle \
-            --assets-dest ../app/src/main/res/
+            --bundle-output /tmp/rn-bundle/index.android.bundle \
+            --assets-dest /tmp/rn-bundle/res/
 
-      # ── Build the debug APK ───────────────────────────────────────────
-      - name: Build debug APK with Gradle
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+      # ── Copy RN bundle into flavor-specific asset directories ────────
+      - name: Copy RN bundle to demo flavor assets
+        run: |
+          mkdir -p app/src/demo/assets
+          cp /tmp/rn-bundle/index.android.bundle app/src/demo/assets/
+          cp -r /tmp/rn-bundle/res/* app/src/demo/res/ 2>/dev/null || true
 
-      # ── Upload APK as a build artifact ───────────────────────────────
-      - name: Upload debug APK
+      - name: Copy RN bundle to full flavor assets
+        run: |
+          mkdir -p app/src/full/assets
+          cp /tmp/rn-bundle/index.android.bundle app/src/full/assets/
+          cp -r /tmp/rn-bundle/res/* app/src/full/res/ 2>/dev/null || true
+
+      # ── Build all 3 APK flavors ───────────────────────────────────────
+      - name: Build all APK flavors
+        run: |
+          ./gradlew \
+            assembleServicesDebug \
+            assembleDemoDebug \
+            assembleFullDebug \
+            --no-daemon --stacktrace
+
+      # ── Upload APKs ──────────────────────────────────────────────────
+      - name: Upload services-only APK
         uses: actions/upload-artifact@v4
         with:
-          name: tomady-nutrition-debug
-          path: app/build/outputs/apk/debug/*.apk
-          compression-level: 0  # APK is already compressed
+          name: tomady-services-debug
+          path: app/build/outputs/apk/services/debug/*.apk
+          compression-level: 0
+          if-no-files-found: error
+
+      - name: Upload demo GUI APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: tomady-demo-debug
+          path: app/build/outputs/apk/demo/debug/*.apk
+          compression-level: 0
+          if-no-files-found: error
+
+      - name: Upload full (both) APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: tomady-full-debug
+          path: app/build/outputs/apk/full/debug/*.apk
+          compression-level: 0
           if-no-files-found: error

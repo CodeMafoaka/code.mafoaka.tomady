@@ -16,6 +16,24 @@ android {
         versionName = "0.1.0"
     }
 
+    flavorDimensions += "distribution"
+    productFlavors {
+        create("services") {
+            dimension = "distribution"
+            applicationIdSuffix = ".services"
+            versionNameSuffix = "-services"
+        }
+        create("demo") {
+            dimension = "distribution"
+            applicationIdSuffix = ".demo"
+            versionNameSuffix = "-demo"
+        }
+        create("full") {
+            dimension = "distribution"
+            versionNameSuffix = "-full"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
