@@ -4,6 +4,20 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import com.tomady.nutrition.data.local.diet.dao.BioRecordDao
+import com.tomady.nutrition.data.local.diet.dao.DishDao
+import com.tomady.nutrition.data.local.diet.dao.DishHistoryDao
+import com.tomady.nutrition.data.local.diet.dao.ProfileDao
+import com.tomady.nutrition.data.local.diet.dao.RecipeDao
+import com.tomady.nutrition.data.local.diet.dao.RecipeIngredientDao
+import com.tomady.nutrition.data.local.diet.dao.UserDao
+import com.tomady.nutrition.data.local.diet.entity.BioRecord
+import com.tomady.nutrition.data.local.diet.entity.Dish
+import com.tomady.nutrition.data.local.diet.entity.DishHistory
+import com.tomady.nutrition.data.local.diet.entity.Profile
+import com.tomady.nutrition.data.local.diet.entity.Recipe
+import com.tomady.nutrition.data.local.diet.entity.RecipeIngredient
+import com.tomady.nutrition.data.local.diet.entity.User
 import com.tomady.nutrition.data.local.foodb.dao.FoodItemDao
 import com.tomady.nutrition.data.local.foodb.dao.NutrientPropertyDao
 import com.tomady.nutrition.data.local.foodb.entity.FoodItem
@@ -13,24 +27,38 @@ import com.tomady.nutrition.data.local.foodb.entity.NutrientProperty
  * Room database for the Tomady application.
  *
  * Manages two database contexts:
- * - **FooDB Database**: Read-only mirror of the FooDB food composition schema,
- *   containing [FoodItem] and [NutrientProperty] entities.
- * - **Diet Database**: User-centric domain tables for personal health tracking
- *   (to be added when diet entities are ready).
- *
- * This class currently exposes the FooDB DAOs. Diet DAOs will be added in a
- * subsequent feature commit.
+ * - **Diet Database**: User-centric domain tables for personal health tracking.
+ * - **FooDB Database**: Read-only mirror of the FooDB food composition schema.
  */
 @Database(
     entities = [
+        // Diet entities
+        User::class,
+        Profile::class,
+        BioRecord::class,
+        Dish::class,
+        Recipe::class,
+        RecipeIngredient::class,
+        DishHistory::class,
+        // FooDB entities
         FoodItem::class,
         NutrientProperty::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
 
+    // ── Diet DAOs ──
+    abstract fun userDao(): UserDao
+    abstract fun profileDao(): ProfileDao
+    abstract fun bioRecordDao(): BioRecordDao
+    abstract fun dishDao(): DishDao
+    abstract fun recipeDao(): RecipeDao
+    abstract fun recipeIngredientDao(): RecipeIngredientDao
+    abstract fun dishHistoryDao(): DishHistoryDao
+
+    // ── FooDB DAOs ──
     abstract fun foodItemDao(): FoodItemDao
     abstract fun nutrientPropertyDao(): NutrientPropertyDao
 
