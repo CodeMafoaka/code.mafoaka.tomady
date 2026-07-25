@@ -83,4 +83,7 @@ dependencies {
 
     // AppCompat (for DemoActivity)
     implementation("androidx.appcompat:appcompat:1.6.1")
+
+    // NanoHTTPd — embedded HTTP server for local-network REST API
+    implementation("org.nanohttpd:nanohttpd:2.3.1")
 }

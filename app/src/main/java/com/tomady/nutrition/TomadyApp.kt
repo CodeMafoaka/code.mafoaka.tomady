@@ -5,29 +5,136 @@ import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
-import com.tomady.nutrition.service.http.TomadyApiServer
+import com.tomady.nutrition.data.AppDatabase
+import com.tomady.nutrition.data.local.diet.DietDatabase
+import com.tomady.nutrition.data.local.foodb.FooDBLocalDatabase
+import com.tomady.nutrition.server.TomadyRestApiServer
+import com.tomady.nutrition.service.diet.DietAPIService
+import com.tomady.nutrition.service.foodb.FooDBDataAPIService
+import com.tomady.nutrition.service.gemma.GemmaAndroidService
 import com.tomady.nutrition.worker.DailySuggestionWorker
 import java.util.concurrent.TimeUnit
 
 /**
  * Tomady Application class.
  *
- * Initializes the WorkManager, database instances, and service singletons.
+ * Initializes the Room databases, service singletons, REST API server, and
+ * WorkManager background jobs.
  *
- * On startup, schedules a [PeriodicWorkRequest] for [DailySuggestionWorker]
- * that runs daily at approximately 00:00 to generate personalised food
- * suggestions for each user.
+ * On startup:
+ * 1. Builds the [AppDatabase] (Diet + FooDB).
+ * 2. Creates wrapper databases and service singletons.
+ * 3. Starts the embedded [TomadyRestApiServer] for local-network HTTP access.
+ * 4. Schedules a [PeriodicWorkRequest] for [DailySuggestionWorker].
  */
 class TomadyApp : Application() {
 
-    private var apiServer: TomadyApiServer? = null
+    /** Shared database instance. */
+    lateinit var database: AppDatabase
+        private set
+
+    /** Diet database wrapper. */
+    lateinit var dietDatabase: DietDatabase
+        private set
+
+    /** FooDB local database wrapper. */
+    lateinit var foodbLocal: FooDBLocalDatabase
+        private set
+
+    /** FooDB data access service. */
+    lateinit var foodbService: FooDBDataAPIService
+        private set
+
+    /** Diet planning and CRUD service. */
+    lateinit var dietService: DietAPIService
+        private set
+
+    /** Gemma on-device LLM service. */
+    lateinit var gemmaService: GemmaAndroidService
+        private set
+
+    /** Embedded REST API server for local-network access. */
+    lateinit var apiServer: TomadyRestApiServer
+        private set
 
     override fun onCreate() {
         super.onCreate()
 
+        instance = this
+        initializeServices()
+        startApiServer()
         scheduleDailySuggestionWorker()
-        apiServer = TomadyApiServer(this).apply {
-            startServer()
+    }
+
+    /**
+     * Initializes the Room database, wrapper databases, and service singletons.
+     */
+    private fun initializeServices() {
+        // 1. Build the combined Room database
+        database = AppDatabase.getInstance(this)
+
+        // 2. Create wrapper databases
+        dietDatabase = DietDatabase(
+            userDao = database.userDao(),
+            profileDao = database.profileDao(),
+            bioRecordDao = database.bioRecordDao(),
+            dishDao = database.dishDao(),
+            recipeDao = database.recipeDao(),
+            recipeIngredientDao = database.recipeIngredientDao(),
+            dishHistoryDao = database.dishHistoryDao()
+        )
+
+        foodbLocal = FooDBLocalDatabase(
+            foodItemDao = database.foodItemDao(),
+            nutrientPropertyDao = database.nutrientPropertyDao()
+        )
+
+        // 3. Create service instances
+        foodbService = FooDBDataAPIService(localDatabase = foodbLocal)
+        dietService = DietAPIService(
+            dietDatabase = dietDatabase,
+            foodbService = foodbService
+        )
+        gemmaService = GemmaAndroidService(
+            dietDatabase = dietDatabase,
+            dietService = dietService,
+            foodbService = foodbService
+        )
+    }
+
+    /**
+     * Starts the embedded REST API server for local-network access.
+     *
+     * The server binds to **0.0.0.0** on port **8910**, making it accessible
+     * from any device on the same WiFi network. External React Native (or any
+     * HTTP) clients can call the REST endpoints instead of using native bridge
+     * modules.
+     *
+     * Server URL: `http://<device-wifi-ip>:8910/api/v1/health`
+     */
+    private fun startApiServer() {
+        apiServer = TomadyRestApiServer(
+            foodbService = foodbService,
+            dietService = dietService,
+            gemmaService = gemmaService,
+            dietDatabase = dietDatabase,
+            context = this
+        )
+        try {
+            apiServer.start()
+            android.util.Log.i(
+                TAG,
+                "REST API running at http://${TomadyRestApiServer.getLocalIpAddress()}:${TomadyRestApiServer.DEFAULT_PORT}/api/v1/health"
+            )
+        } catch (e: Exception) {
+            android.util.Log.e(TAG, "Failed to start REST API server", e)
+        }
+    }
+
+    override fun onTerminate() {
+        super.onTerminate()
+        if (::apiServer.isInitialized) {
+            apiServer.shutdown()
         }
     }
 
@@ -41,18 +148,7 @@ class TomadyApp : Application() {
      * - **Constraints**: Requires a device idle state (battery saver friendly)
      *   but does NOT require charging or network — Gemma runs on-device.
      * - **Existing policy**: [ExistingPeriodicWorkPolicy.KEEP] — if already
-     *   scheduled, don't duplicate. To force a re-schedule, use REPLACE.
-     *
-     * The first run will occur approximately 24 hours after the app is first
-     * launched. On subsequent days, WorkManager aligns the execution to
-     * approximately 00:00 (midnight) based on the device's doze/maintenance
-     * window.
-     *
-     * To align more precisely with midnight, production apps can use
-     * [androidx.work.Constraints] with a custom `triggerContentMaxDelay`
-     * or combine this with a [android.app.AlarmManager] initial seed.
-     * For the Tomady headless architecture, the 24h periodic interval is
-     * sufficient since suggestions are checked when the RN host polls.
+     *   scheduled, don't duplicate.
      */
     private fun scheduleDailySuggestionWorker() {
         val constraints = Constraints.Builder()
@@ -77,5 +173,15 @@ class TomadyApp : Application() {
     companion object {
         /** Tag used for identifying the daily suggestion work in logs and debugging. */
         const val WORK_TAG_DAILY_SUGGESTION = "daily_suggestion"
+        private const val TAG = "TomadyApp"
+
+        @Volatile
+        private var instance: TomadyApp? = null
+
+        /**
+         * Returns the application singleton instance.
+         */
+        fun getInstance(): TomadyApp = instance
+            ?: throw IllegalStateException("TomadyApp not initialized")
     }
 }
