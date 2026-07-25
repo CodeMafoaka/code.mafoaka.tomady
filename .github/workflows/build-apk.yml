@@ -40,6 +40,11 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
+      # ── Build services-only APK first (no RN bundle needed) ─────────
+      - name: Build services-only APK
+        run: |
+          ./gradlew assembleServicesDebug --no-daemon --stacktrace
+
       # ── Install demo RN dependencies ─────────────────────────────────
       - name: Install demo dependencies
         working-directory: ./demo
@@ -49,6 +54,7 @@ jobs:
       - name: Bundle React Native JS (Android)
         working-directory: ./demo
         run: |
+          mkdir -p /tmp/rn-bundle
           npx react-native bundle \
             --platform android \
             --dev false \
@@ -69,11 +75,10 @@ jobs:
           cp /tmp/rn-bundle/index.android.bundle app/src/full/assets/
           cp -r /tmp/rn-bundle/res/* app/src/full/res/ 2>/dev/null || true
 
-      # ── Build all 3 APK flavors ───────────────────────────────────────
-      - name: Build all APK flavors
+      # ── Build remaining APK flavors (with RN bundle) ─────────────────
+      - name: Build demo and full APKs
         run: |
           ./gradlew \
-            assembleServicesDebug \
             assembleDemoDebug \
             assembleFullDebug \
             --no-daemon --stacktrace
