@@ -1,0 +1,68 @@
+# Tomady Nutrition — AI Coding Rules
+
+## Commit Convention
+
+All commits MUST follow **Conventional Commits** (v1.0.0):
+
+```
+<type>(<scope>): <short description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+### Types
+
+| Type       | Usage                                      |
+|------------|--------------------------------------------|
+| `feat`     | A new feature                              |
+| `fix`      | A bug fix                                  |
+| `docs`     | Documentation only changes                 |
+| `style`    | Code style (formatting, missing semicolons)|
+| `refactor` | Code change that neither fixes nor adds    |
+| `perf`     | Performance improvement                    |
+| `test`     | Adding or correcting tests                 |
+| `chore`    | Build, CI, dependencies, tooling           |
+| `config`   | Configuration changes                      |
+
+### Scopes
+
+| Scope       | Area                          |
+|-------------|-------------------------------|
+| `db`        | Room entities, DAOs, database |
+| `diet`      | Diet service & data layer     |
+| `foodb`     | FooDB data service & layer    |
+| `gemma`     | Gemma AI/ML service           |
+| `worker`    | Background workers            |
+| `bridge`    | React Native bridge modules   |
+| `docs`      | Documentation                 |
+| `build`     | Gradle, CI, project config    |
+
+### Examples
+
+```
+feat(diet): add daily nutrition goal computation
+fix(foodb): correct nutrient unit parsing from raw content
+chore(build): upgrade Room to 2.6.1
+docs: update architecture overview in SOUSPAPE.md
+```
+
+## Branch Naming
+
+- `feat/<scope>/<short-desc>`
+- `fix/<scope>/<short-desc>`
+- `chore/<scope>/<short-desc>`
+
+Example: `feat/diet/meal-plan-generator`
+
+## Project Language & Style
+
+- All new source code MUST be written in **Kotlin**.
+- Use **camelCase** for variables/functions, **PascalCase** for classes/interfaces.
+- Every public class MUST have a KDoc comment describing its purpose.
+- Do NOT implement business logic in stubs — keep method bodies empty or returning default values.
+
+## Documentation
+
+- See `doc/SOUSPAPE.md` for project-specific architecture decisions and instructions.
