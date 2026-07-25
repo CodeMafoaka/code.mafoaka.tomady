@@ -15,6 +15,7 @@ import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.bridge.WritableArray;
+import com.facebook.react.bridge.ReactApplicationContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -252,8 +253,8 @@ public class ArchitecturalVerificationTest {
     @Test
     public void testServiceStubs() {
         GemmaAndroidService gemmaService = new GemmaAndroidService();
-        assertFalse(gemmaService.initializeModel());
-        assertEquals("", gemmaService.generateSuggestion("test"));
+        assertTrue(gemmaService.initializeModel());
+        assertEquals("Error: Gemma model is not loaded.", new GemmaAndroidService().generateSuggestion("test"));
     }
 
     @Test
@@ -417,22 +418,8 @@ public class ArchitecturalVerificationTest {
         dish.setCalories(350.0);
         fakeDietDb.dietDao().insertDish(dish);
 
-        // Pre-configure food details inside the simulated remote FooDB
-        // (so getFoodDetails retrieves it)
-        // Since we are mocking remote API in FooDBDataAPIService:
-        // Food #10 will return: Calories: 100/100g, Protein: 10g/100g, Sugar: 2g/100g
-        // Let's check how the simulated FoodDetails behaves. It always returns:
-        // FoodItem: Remote Food #{foodId}
-        // Nutrients: "Water" = 92.1, "Protein" = 1.2
-        // Since we cannot alter the static mock response of fetchFromRemoteAPI directly,
-        // we can test that the aggregator successfully counts Protein!
-        // At 250g total (200g of Food 10 + 50g of Food 11), multiplier is 2.0 and 0.5.
-        // FoodDetails contains: Protein = 1.2.
-        // Total Protein = (1.2 * 2.0) + (1.2 * 0.5) = 2.4 + 0.6 = 3.0g.
-
         DietAPIService.DishNutritionalValue values = dietService.getDishNutritionalValue(5);
         assertNotNull(values);
-        // Assert Protein calculation: 3.0g
         assertEquals(3.0, values.getProtein(), 0.001);
     }
 
@@ -451,16 +438,12 @@ public class ArchitecturalVerificationTest {
         profile.setDiseases("Diabetes Type II, Hypertension");
         fakeDietDb.dietDao().insertProfile(profile);
 
-        // Create a dish with high sugar content (we can fake the recipe ingredients to result in high sugar)
+        // Create a dish with high sugar content
         Recipe recipe = new Recipe();
         recipe.setId(2);
         recipe.setTitle("Sweet Dessert");
         fakeDietDb.dietDao().insertRecipe(recipe);
 
-        // Let's insert a recipe ingredient. Since simulated FoodDetails returns "Water"=92.1 and "Protein"=1.2,
-        // we can override the simulated response or we can register a custom property by pre-caching the food item details in the local FooDB!
-        // Oh! Remember, getFoodDetails checks the local database cache FIRST!
-        // Let's populate the local database cache directly with custom nutrients containing massive sugar!
         FoodItem foodItem = new FoodItem();
         foodItem.setId(99);
         foodItem.setName("Sugar Cube");
@@ -603,5 +586,124 @@ public class ArchitecturalVerificationTest {
         WritableArray historyArray = (WritableArray) historyPromise.resolvedValue;
         assertEquals(1, historyArray.size());
         assertEquals(123, ((WritableMap) historyArray.getMap(0)).getInt("dishId"));
+    }
+
+    @Test
+    public void testGemmaAndroidServiceStreaming() {
+        GemmaAndroidService service = new GemmaAndroidService();
+        service.initializeModel();
+
+        final List<String> tokens = new ArrayList<>();
+        service.askQuestionStreaming("Can I drink coca-cola with diabetes?", new GemmaAndroidService.TokenStreamListener() {
+            @Override
+            public void onToken(String token) {
+                tokens.add(token);
+            }
+        });
+
+        assertFalse(tokens.isEmpty());
+        assertTrue(tokens.get(0).length() > 0);
+    }
+
+    @Test
+    public void testGemmaAndroidServiceRecipeComputationAndValidationPipeline() {
+        FakeDietDatabase fakeDietDb = new FakeDietDatabase();
+        FakeFooDBLocalDatabase fakeFooDb = new FakeFooDBLocalDatabase();
+        FooDBDataAPIService fooDbService = new FooDBDataAPIService(fakeFooDb);
+
+        DietAPIService dietService = new DietAPIService(fakeDietDb, fooDbService);
+        GemmaAndroidService gemmaService = new GemmaAndroidService(dietService);
+        gemmaService.initializeModel();
+
+        // Let's create a Profile with Diabetes
+        Profile profile = new Profile();
+        profile.setId(3);
+        profile.setUserId(800);
+        profile.setDiseases("Diabetes");
+        fakeDietDb.dietDao().insertProfile(profile);
+
+        // We pre-register "Coca-Cola" with High Sugar (approx 35g of sugar)
+        Recipe r = new Recipe();
+        r.setId(4);
+        r.setTitle("Drink Coca-Cola");
+        fakeDietDb.dietDao().insertRecipe(r);
+
+        FoodItem fi = new FoodItem();
+        fi.setId(200);
+        fi.setName("Coca-Cola");
+        fakeFooDb.fooDBLocalDao().insertFoodItem(fi);
+
+        NutrientProperty sugarProp = new NutrientProperty();
+        sugarProp.setFoodItemId(200);
+        sugarProp.setPropertyName("Sugar");
+        sugarProp.setPropertyValue(10.6); // 10.6g per 100ml
+        fakeFooDb.fooDBLocalDao().insertNutrientProperties(List.of(sugarProp));
+
+        RecipeIngredient ri = new RecipeIngredient();
+        ri.setRecipeId(4);
+        ri.setFoodItemId(200);
+        ri.setQuantity(330.0); // 330ml -> 35g sugar
+        fakeDietDb.dietDao().insertRecipeIngredient(ri);
+
+        Dish dish = new Dish();
+        dish.setId(30);
+        dish.setName("Coca-Cola");
+        dish.setRecipeId(4);
+        fakeDietDb.dietDao().insertDish(dish);
+
+        // Run the pipeline for a Coca-Cola request
+        GemmaAndroidService.RecipeResponse resp = gemmaService.computeRecipe("Can I drink coca-cola?", 3);
+        assertNotNull(resp);
+        assertEquals("Drink Coca-Cola", resp.getRecipeTitle());
+        assertFalse(resp.isSafe()); // should be unsafe due to high sugar and diabetes
+        assertEquals(1, resp.getWarnings().size());
+        assertTrue(resp.getWarnings().get(0).contains("High sugar conflict"));
+    }
+
+    @Test
+    public void testGemmaModuleReactBridge() {
+        FakeDietDatabase fakeDietDb = new FakeDietDatabase();
+        DietAPIService dietService = new DietAPIService(fakeDietDb, null);
+        GemmaAndroidService gemmaService = new GemmaAndroidService(dietService);
+        ReactApplicationContext reactContext = new ReactApplicationContext();
+        GemmaModule module = new GemmaModule(reactContext, gemmaService);
+
+        // 1. Initialize model
+        MockPromise initPromise = new MockPromise();
+        module.initializeModel(initPromise);
+        assertTrue((Boolean) initPromise.resolvedValue);
+
+        // 2. Ask question
+        MockPromise askPromise = new MockPromise();
+        module.askQuestion("Will eating salad help me?", askPromise);
+        assertNotNull(askPromise.resolvedValue);
+        assertTrue(((String) askPromise.resolvedValue).contains("Salads are excellent"));
+
+        // 3. Compute recipe (Safe option: Salad)
+        Profile profile = new Profile();
+        profile.setId(4);
+        profile.setUserId(900);
+        fakeDietDb.dietDao().insertProfile(profile);
+
+        // Insert Dish Salad bowl
+        Recipe r = new Recipe();
+        r.setId(5);
+        r.setTitle("Nutritious Salad");
+        fakeDietDb.dietDao().insertRecipe(r);
+
+        Dish d = new Dish();
+        d.setId(40);
+        d.setName("Salad bowl");
+        d.setRecipeId(5);
+        fakeDietDb.dietDao().insertDish(d);
+
+        MockPromise computePromise = new MockPromise();
+        module.computeRecipe("How to prepare a salad?", 4.0, computePromise);
+
+        assertNotNull(computePromise.resolvedValue);
+        assertTrue(computePromise.resolvedValue instanceof WritableMap);
+        WritableMap map = (WritableMap) computePromise.resolvedValue;
+        assertEquals("Nutritious Salad", map.getString("recipeTitle"));
+        assertTrue(map.getBoolean("isSafe"));
     }
 }
