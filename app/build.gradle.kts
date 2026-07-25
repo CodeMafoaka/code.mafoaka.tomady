@@ -2,6 +2,8 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.google.devtools.ksp")
+    // React Native Gradle plugin (manages RN AAR dependency & repositories)
+    id("com.facebook.react") version "0.73.6"
 }
 
 android {
@@ -74,8 +76,10 @@ dependencies {
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 
-    // React Native bridge (provided by host app at runtime)
-    compileOnly("com.facebook.react:react-native:0.73.6")
+    // React Native bridge — the com.facebook.react plugin adds this as an
+    // implementation dependency (bundled in the APK). For the services flavor
+    // this is harmless: the bridge classes exist but are never initialized.
+    // The plugin also handles Maven repo resolution from node_modules.
 
     // JSON
     implementation("com.google.code.gson:gson:2.10.1")
