@@ -73,6 +73,7 @@ class DailySuggestionWorker(
         val dietService = DietAPIService(dietDatabase = dietDb, foodbService = foodbService)
 
         GemmaAndroidService(
+            context = applicationContext,
             dietDatabase = dietDb,
             dietService = dietService,
             foodbService = foodbService

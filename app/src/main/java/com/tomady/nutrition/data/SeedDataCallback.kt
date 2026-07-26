@@ -308,28 +308,24 @@ class SeedDataCallback : RoomDatabase.Callback() {
             val recipes = listOf(
                 Recipe(
                     id = romazavaRecipeId, name = "Romazava",
-                    dishId = "dish-romazava",
                     description = "Ragoût de zébu aux brèdes",
                     instructions = "1. Faire revenir la viande de zébu dans une marmite.\\n2. Ajouter les oignons et l'ail hachés.\\n3. Verser de l'eau et laisser cuire 30 min.\\n4. Ajouter les brèdes (anana) et laisser mijoter 15 min.\\n5. Saler, poivrer et servir avec du riz blanc.",
                     prepTimeMinutes = 15, cookTimeMinutes = 50, servings = 4
                 ),
                 Recipe(
                     id = ravitotoRecipeId, name = "Ravitoto sy henakisoa",
-                    dishId = "dish-ravitoto",
                     description = "Feuilles de manioc pilées au porc et lait de coco",
                     instructions = "1. Piler les feuilles de manioc cuites.\\n2. Faire dorer la viande de porc.\\n3. Ajouter le manioc pilé et le lait de coco.\\n4. Laisser mijoter 20 min à feu doux.\\n5. Servir avec du riz.",
                     prepTimeMinutes = 20, cookTimeMinutes = 40, servings = 4
                 ),
                 Recipe(
                     id = varyAnanaRecipeId, name = "Vary amin'anana",
-                    dishId = "dish-vary-anana",
                     description = "Riz aux herbes et légumes verts",
                     instructions = "1. Laver le riz et le mettre à cuire.\\n2. Hacher finement les brèdes et les herbes.\\n3. Les ajouter au riz en fin de cuisson.\\n4. Assaisonner avec du sel et un filet d'huile.",
                     prepTimeMinutes = 10, cookTimeMinutes = 25, servings = 4
                 ),
                 Recipe(
                     id = akohoVoanioRecipeId, name = "Akoho sy voanio",
-                    dishId = "dish-akoho-voanio",
                     description = "Poulet au lait de coco",
                     instructions = "1. Découper le poulet en morceaux.\\n2. Le faire dorer dans une cocotte.\\n3. Ajouter l'oignon, l'ail et le gingembre.\\n4. Verser le lait de coco et laisser mijoter 25 min.\\n5. Servir avec du riz blanc.",
                     prepTimeMinutes = 15, cookTimeMinutes = 35, servings = 4
