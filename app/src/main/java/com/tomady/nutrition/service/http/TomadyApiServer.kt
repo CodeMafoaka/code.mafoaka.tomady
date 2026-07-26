@@ -13,10 +13,13 @@ import fi.iki.elonen.NanoHTTPD
 import fi.iki.elonen.NanoHTTPD.IHTTPSession
 import fi.iki.elonen.NanoHTTPD.Response
 import fi.iki.elonen.NanoHTTPD.ResponseException
+import android.util.Log
 import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.Date
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
 internal class TomadyApiServer(
@@ -60,6 +63,8 @@ internal class TomadyApiServer(
             uri.matches(Regex("^/v1/dishes/[^/]+/nutrition$")) && method == Method.GET -> handleDishNutrition(uri)
             uri == "/v1/gemma/compute-recipe" && method == Method.POST -> handleComputeRecipe(body)
             uri == "/v1/gemma/ask" && method == Method.POST -> handleGemmaAsk(body)
+            uri == "/v1/gemma/model" && method == Method.GET -> handleModelStatus()
+            uri == "/v1/gemma/download" && method == Method.POST -> handleTriggerModelDownload()
             uri == "/v1/worker/suggestions/daily" && method == Method.GET -> handleGetDailySuggestions()
             uri == "/v1/worker/suggestions/daily" && method == Method.POST -> handleTriggerDailySuggestions()
             else -> newFixedLengthResponse(
@@ -259,6 +264,7 @@ internal class TomadyApiServer(
         if (prompt.isNullOrBlank() || userId.isNullOrBlank()) {
             return badRequest("Missing required fields 'prompt' and 'userId'.")
         }
+        // Load model if needed — this is INSTANT (only checks cache, no download)
         if (!services.gemmaService.isModelLoaded()) {
             runService { services.gemmaService.loadModel(null) }
         }
@@ -272,11 +278,43 @@ internal class TomadyApiServer(
         if (question.isNullOrBlank()) {
             return badRequest("Missing required field 'question'.")
         }
+        // Load model if needed — this is INSTANT (only checks cache, no download)
         if (!services.gemmaService.isModelLoaded()) {
             runService { services.gemmaService.loadModel(null) }
         }
         val answerResult: GemmaAnswerResult = runService { services.gemmaService.askQuestion(question, userId) }
         return ok(answerResult)
+    }
+
+    private fun handleModelStatus(): Response {
+        val status = mapOf(
+            "loaded" to services.gemmaService.isModelLoaded(),
+            "loading" to services.gemmaService.isLoadingModel(),
+            "usingMock" to services.gemmaService.isUsingMockFallback(),
+            "modelVersion" to (services.gemmaService.getModelVersion() ?: "unknown"),
+            "downloadProgress" to (services.gemmaService.getDownloadProgress() ?: 0.0f)
+        )
+        return ok(status)
+    }
+
+    private fun handleTriggerModelDownload(): Response {
+        // Check if model is already cached (instant check)
+        if (services.gemmaService.isModelLoaded() && !services.gemmaService.isUsingMockFallback()) {
+            return ok(mapOf("status" to "already_loaded", "message" to "Real Gemma model is already loaded."))
+        }
+        // Launch download in background — HTTP response returns immediately
+        kotlinx.coroutines.GlobalScope.launch {
+            try {
+                val path = services.gemmaService.downloadModelIfNeeded()
+                if (path != null) {
+                    // Download succeeded — reload model with real file
+                    services.gemmaService.loadModel(path)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Background model download failed: ${e.message}", e)
+            }
+        }
+        return ok(mapOf("status" to "started", "message" to "Model download started in background. Poll /v1/gemma/model for progress."))
     }
 
     private fun handleGetDailySuggestions(): Response {

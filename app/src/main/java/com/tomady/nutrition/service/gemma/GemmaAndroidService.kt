@@ -88,15 +88,21 @@ class GemmaAndroidService(
     /**
      * Loads the Gemma model into memory via MediaPipe.
      *
-     * The pipeline:
-     * 1. Check for a cached GGUF model file via [ModelDownloader].
-     * 2. If missing, attempt to download it (may take minutes on first run).
-     * 3. Initialise a [LlmInference] instance with the model file.
-     * 4. If everything fails, fall back to [MockLLMEngine] so the app remains
-     *    usable during development.
+     * **Timeout-safe**: This method NEITHER triggers a download NOR blocks for
+     * one. It only checks for an already-cached GGUF file (instant check via
+     * [ModelDownloader.getCachedModelPath]). If no cached file is found,
+     * the service falls back to [MockLLMEngine] immediately.
+     *
+     * To trigger an actual download, call [downloadModelIfNeeded] separately
+     * (e.g. from a background worker or a dedicated API endpoint).
+     *
+     * Pipeline:
+     * 1. Check for a cached GGUF model file via [ModelDownloader.getCachedModelPath].
+     * 2. If found, initialise a [LlmInference] instance with it.
+     * 3. If not found, fall back to [MockLLMEngine] instantly — no download.
      *
      * @param modelPath Optional explicit path to a GGUF model file. If null,
-     *                  the service attempts to locate/download the default model.
+     *                  the service checks the default cache location.
      * @return `true` if the model (real or mock) is ready for inference.
      */
     suspend fun loadModel(modelPath: String? = null): Boolean = withContext(Dispatchers.IO) {
@@ -105,8 +111,8 @@ class GemmaAndroidService(
 
         isLoading.set(true)
         try {
-            // 1. Resolve the model file path
-            val resolvedPath = modelPath ?: modelDownloader.ensureModelDownloaded()
+            // 1. Resolve the model file path — INSTANT check, no download
+            val resolvedPath = modelPath ?: modelDownloader.getCachedModelPath()
 
             if (resolvedPath != null) {
                 // 2. Found a real model file — initialise MediaPipe LlmInference
@@ -127,11 +133,12 @@ class GemmaAndroidService(
                 }
             }
 
-            // 3. Model file not available — use mock fallback
-            Log.w(TAG, "Gemma model file not available — falling back to MockLLMEngine")
+            // 3. Model file not cached — skip download, use mock fallback
+            //    Download is handled separately by downloadModelIfNeeded().
+            Log.w(TAG, "Gemma model file not cached — falling back to MockLLMEngine")
             isLoaded.set(true)
             isUsingMock.set(true)
-            modelVersion.set("mock (no model file available)")
+            modelVersion.set("mock (model not downloaded yet)")
             true
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load Gemma model: ${e.message}", e)
@@ -143,11 +150,28 @@ class GemmaAndroidService(
     }
 
     /**
-     * Attempts to trigger a model download explicitly.
+     * Downloads the Gemma model if it is not already cached.
      *
-     * @return The path to the downloaded model file, or null if download fails.
+     * This is a **potentially long-running** operation (minutes for ~1.5 GB).
+     * Call it from:
+     * - A background [androidx.work.WorkManager] worker
+     * - A dedicated API endpoint (e.g., `/v1/gemma/download`)
+     * - A coroutine scope that is NOT on the main thread
+     *
+     * After the download completes, call [loadModel] again to switch from
+     * mock to real inference.
+     *
+     * @return The absolute path to the downloaded model file, or null if the
+     *         download fails or the model is already cached.
      */
-    suspend fun downloadModel(): String? = withContext(Dispatchers.IO) {
+    suspend fun downloadModelIfNeeded(): String? = withContext(Dispatchers.IO) {
+        // Check cache first (instant)
+        val cached = modelDownloader.getCachedModelPath()
+        if (cached != null) {
+            Log.i(TAG, "Model already cached at $cached — skipping download")
+            return@withContext cached
+        }
+        // Download (slow)
         modelDownloader.downloadFromUrl()
     }
 
