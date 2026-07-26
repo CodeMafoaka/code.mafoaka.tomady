@@ -1,1 +1,5 @@
+<<<<<<< HEAD
 .gradle/
+=======
+app/build/
+>>>>>>> 553e9c4 (feat: expose services on port 7777 and implement native ping gui)

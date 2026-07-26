@@ -157,7 +157,8 @@ class TomadyApp : Application() {
             dietService = dietService,
             gemmaService = gemmaService,
             dietDatabase = dietDatabase,
-            context = this
+            context = this,
+            port = BuildConfig.SERVICE_API_PORT
         )
         try {
             apiServer.start()

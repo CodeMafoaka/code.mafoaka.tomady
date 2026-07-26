@@ -130,8 +130,8 @@ class TomadyRestApiServer(
         }
 
         return when {
-            // ── Ping ────────────────────────────────────────────────
-            method == "GET" && uri == "/ping" -> handlePing()
+            // ── Ping ───────────────────────────────────────────────
+            method == "GET" && (uri == "/ping" || uri == "/api/v1/ping" || uri == "/v1/ping") -> handlePing()
 
             // ── Health ─────────────────────────────────────────────
             method == "GET" && uri == "/api/v1/health" -> handleHealth()
@@ -208,13 +208,11 @@ class TomadyRestApiServer(
     // Handler implementations
     // ══════════════════════════════════════════════════════════════════════
 
-    // ── Ping ───────────────────────────────────────────────────────────
+    // ── Ping & Health ───────────────────────────────────────────────────
 
     private fun handlePing(): Response {
-        return jsonOk(mapOf("ok" to true, "message" to "Tomady server is running on port $port"))
+        return jsonOk(mapOf("status" to "pong"))
     }
-
-    // ── Health ──────────────────────────────────────────────────────────
 
     private fun handleHealth(): Response {
         return jsonOk(mapOf(
