@@ -107,7 +107,8 @@ class TomadyRestApiServer(
     override fun serve(session: IHTTPSession): Response {
         return try {
             val method = session.method.name.uppercase()
-            val uri = session.uri
+            val rawUri = session.uri
+            val uri = if (rawUri.length > 1 && rawUri.endsWith("/")) rawUri.substring(0, rawUri.length - 1) else rawUri
             val params = session.parms ?: emptyMap()
             val body = readBody(session)
 
@@ -136,7 +137,42 @@ class TomadyRestApiServer(
             // ── Health ─────────────────────────────────────────────
             method == "GET" && uri == "/api/v1/health" -> handleHealth()
 
-            // ── FooDB ──────────────────────────────────────────────
+            // ── OpenAPI 3.0.3 Spec /v1/ Endpoints ──────────────────
+            method == "GET" && uri == "/v1/food/search" -> handleFoodSearch(params)
+            uri.matches(Regex("/v1/food/(\\d+)")) -> {
+                val id = Regex("/v1/food/(\\d+)").find(uri)!!.groupValues[1].toLong()
+                handleFoodDetails(id)
+            }
+            uri.matches(Regex("/v1/users/(.+)/profile")) -> {
+                val userId = Regex("/v1/users/(.+)/profile").find(uri)!!.groupValues[1]
+                if (method == "GET") handleGetProfile(userId)
+                else if (method == "PUT") handleUpdateProfile(userId, body)
+                else jsonError(405, "Method not allowed")
+            }
+            uri.matches(Regex("/v1/users/(.+)/biorecords")) -> {
+                val userId = Regex("/v1/users/(.+)/biorecords").find(uri)!!.groupValues[1]
+                if (method == "POST") handleRecordBio(userId, body)
+                else jsonError(405, "Method not allowed")
+            }
+            uri.matches(Regex("/v1/users/(.+)/history")) -> {
+                val userId = Regex("/v1/users/(.+)/history").find(uri)!!.groupValues[1]
+                if (method == "GET") handleGetMeals(userId, params)
+                else if (method == "POST") handleLogMeal(userId, body)
+                else jsonError(405, "Method not allowed")
+            }
+            uri.matches(Regex("/v1/dishes/(.+)/nutrition")) -> {
+                val dishId = Regex("/v1/dishes/(.+)/nutrition").find(uri)!!.groupValues[1]
+                handleDishNutrition(dishId)
+            }
+            method == "POST" && uri == "/v1/gemma/compute-recipe" -> handleGemmaComputeRecipe(body)
+            method == "POST" && uri == "/v1/gemma/ask" -> handleGemmaAsk(body)
+            uri == "/v1/worker/suggestions/daily" -> {
+                if (method == "GET") handleGetDailySuggestions()
+                else if (method == "POST") handleTriggerWorker()
+                else jsonError(405, "Method not allowed")
+            }
+
+            // ── Legacy /api/v1/ FooDB Endpoints ────────────────────
             method == "GET" && uri == "/api/v1/foodb/search" -> handleFoodSearch(params)
             uri.matches(Regex("/api/v1/foodb/food/(\\d+)/nutrients")) -> {
                 val id = Regex("/api/v1/foodb/food/(\\d+)/nutrients").find(uri)!!.groupValues[1].toLong()
@@ -148,7 +184,7 @@ class TomadyRestApiServer(
             }
             method == "GET" && uri == "/api/v1/foodb/groups" -> handleFoodGroups()
 
-            // ── Diet / Profile ─────────────────────────────────────
+            // ── Legacy /api/v1/ Diet / Profile Endpoints ───────────
             uri.matches(Regex("/api/v1/diet/profile/(.+)")) -> {
                 val userId = Regex("/api/v1/diet/profile/(.+)").find(uri)!!.groupValues[1]
                 handleGetProfile(userId)
@@ -164,7 +200,7 @@ class TomadyRestApiServer(
                 handleDailyTargets(userId)
             }
 
-            // ── Diet / Meals ───────────────────────────────────────
+            // ── Legacy /api/v1/ Diet / Meals Endpoints ─────────────
             method == "POST" && uri == "/api/v1/diet/meal" -> handleLogMeal(body)
             uri.matches(Regex("/api/v1/diet/meals/(.+)")) -> {
                 val userId = Regex("/api/v1/diet/meals/(.+)").find(uri)!!.groupValues[1]
@@ -183,7 +219,7 @@ class TomadyRestApiServer(
                 handleDishValidation(match.groupValues[1], match.groupValues[2])
             }
 
-            // ── Diet / Dish & Recipe CRUD ──────────────────────────
+            // ── Legacy /api/v1/ Diet / Dish & Recipe CRUD Endpoints ──
             method == "POST" && uri == "/api/v1/diet/dish" -> handleCreateDish(body)
             uri.matches(Regex("/api/v1/diet/dish/(.+)")) -> {
                 val dishId = Regex("/api/v1/diet/dish/(.+)").find(uri)!!.groupValues[1]
@@ -191,12 +227,12 @@ class TomadyRestApiServer(
             }
             method == "POST" && uri == "/api/v1/diet/recipe" -> handleCreateRecipe(body)
 
-            // ── Gemma ──────────────────────────────────────────────
+            // ── Legacy /api/v1/ Gemma Endpoints ───────────────────
             method == "POST" && uri == "/api/v1/gemma/load" -> handleGemmaLoad()
             method == "POST" && uri == "/api/v1/gemma/ask" -> handleGemmaAsk(body)
             method == "POST" && uri == "/api/v1/gemma/compute-recipe" -> handleGemmaComputeRecipe(body)
 
-            // ── Worker ─────────────────────────────────────────────
+            // ── Legacy /api/v1/ Worker Endpoints ──────────────────
             method == "POST" && uri == "/api/v1/worker/trigger-daily-suggestion" -> handleTriggerWorker()
 
             // ── 404 ────────────────────────────────────────────────
@@ -261,10 +297,9 @@ class TomadyRestApiServer(
         return jsonOk(mapOf("profile" to profile))
     }
 
-    private fun handleUpdateProfile(body: String?): Response {
+    private fun handleUpdateProfile(userId: String, body: String?): Response {
         if (body == null) return jsonError(400, "Request body required")
         val json = tryParseJson(body) ?: return jsonError(400, "Invalid JSON")
-        val userId = json.get("userId")?.asString ?: return jsonError(400, "Missing 'userId'")
         val profile = runBlocking {
             val existing = dietService.getProfile(userId)
             if (existing != null) {
@@ -298,12 +333,18 @@ class TomadyRestApiServer(
         return jsonOk(mapOf("profile" to profile))
     }
 
-    // ── Diet / Bio Records ──────────────────────────────────────────────
-
-    private fun handleRecordBio(body: String?): Response {
+    private fun handleUpdateProfile(body: String?): Response {
         if (body == null) return jsonError(400, "Request body required")
         val json = tryParseJson(body) ?: return jsonError(400, "Invalid JSON")
         val userId = json.get("userId")?.asString ?: return jsonError(400, "Missing 'userId'")
+        return handleUpdateProfile(userId, body)
+    }
+
+    // ── Diet / Bio Records ──────────────────────────────────────────────
+
+    private fun handleRecordBio(userId: String, body: String?): Response {
+        if (body == null) return jsonError(400, "Request body required")
+        val json = tryParseJson(body) ?: return jsonError(400, "Invalid JSON")
         val date = json.get("date")?.asString ?: return jsonError(400, "Missing 'date' (yyyy-MM-dd)")
         val record = runBlocking {
             dietService.recordBio(
@@ -317,6 +358,13 @@ class TomadyRestApiServer(
             )
         }
         return jsonOk(mapOf("record" to record))
+    }
+
+    private fun handleRecordBio(body: String?): Response {
+        if (body == null) return jsonError(400, "Request body required")
+        val json = tryParseJson(body) ?: return jsonError(400, "Invalid JSON")
+        val userId = json.get("userId")?.asString ?: return jsonError(400, "Missing 'userId'")
+        return handleRecordBio(userId, body)
     }
 
     private fun handleGetBioRecord(userId: String, params: Map<String, String>): Response {
@@ -340,10 +388,9 @@ class TomadyRestApiServer(
 
     // ── Diet / Meals ────────────────────────────────────────────────────
 
-    private fun handleLogMeal(body: String?): Response {
+    private fun handleLogMeal(userId: String, body: String?): Response {
         if (body == null) return jsonError(400, "Request body required")
         val json = tryParseJson(body) ?: return jsonError(400, "Invalid JSON")
-        val userId = json.get("userId")?.asString ?: return jsonError(400, "Missing 'userId'")
         val date = json.get("date")?.asString ?: return jsonError(400, "Missing 'date' (yyyy-MM-dd)")
         val history = runBlocking {
             dietService.logMealConsumption(
@@ -356,6 +403,19 @@ class TomadyRestApiServer(
             )
         }
         return jsonOk(mapOf("entry" to history))
+    }
+
+    private fun handleLogMeal(body: String?): Response {
+        if (body == null) return jsonError(400, "Request body required")
+        val json = tryParseJson(body) ?: return jsonError(400, "Invalid JSON")
+        val userId = json.get("userId")?.asString ?: return jsonError(400, "Missing 'userId'")
+        return handleLogMeal(userId, body)
+    }
+
+    private fun handleGetDailySuggestions(): Response {
+        val today = java.time.LocalDate.now().toString()
+        val suggestions = runBlocking { dietService.getDailySuggestions(today) }
+        return jsonOk(mapOf("date" to today, "suggestions" to suggestions))
     }
 
     private fun handleGetMeals(userId: String, params: Map<String, String>): Response {
