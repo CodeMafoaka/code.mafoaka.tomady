@@ -75,6 +75,7 @@ class DemoJSBridge(context: Context) {
             dishHistoryDao = db.dishHistoryDao()
         )
         GemmaAndroidService(
+            context = context.applicationContext,
             dietDatabase = dietDb,
             dietService = dietService,
             foodbService = foodbService

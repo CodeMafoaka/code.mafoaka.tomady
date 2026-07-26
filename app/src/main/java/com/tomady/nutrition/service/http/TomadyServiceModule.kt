@@ -43,6 +43,7 @@ internal class TomadyServiceModule(context: Context) {
 
     internal val gemmaService: GemmaAndroidService by lazy {
         GemmaAndroidService(
+            context = context.applicationContext,
             dietDatabase = dietDatabase,
             dietService = dietService,
             foodbService = foodbService
