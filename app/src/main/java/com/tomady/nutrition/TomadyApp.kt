@@ -63,6 +63,9 @@ class TomadyApp : Application() {
     lateinit var apiServer: TomadyRestApiServer
         private set
 
+    /** Helper to check if the api server is initialized */
+    fun isApiServerInitialized(): Boolean = ::apiServer.isInitialized
+
     override fun onCreate() {
         super.onCreate()
 
@@ -157,7 +160,8 @@ class TomadyApp : Application() {
             dietService = dietService,
             gemmaService = gemmaService,
             dietDatabase = dietDatabase,
-            context = this
+            context = this,
+            port = BuildConfig.SERVICE_API_PORT
         )
         try {
             apiServer.start()

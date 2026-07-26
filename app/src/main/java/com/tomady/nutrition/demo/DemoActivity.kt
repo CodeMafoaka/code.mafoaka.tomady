@@ -2,23 +2,30 @@ package com.tomady.nutrition.demo
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.content.pm.PackageManager
+import android.graphics.Color
+import android.graphics.Typeface
 import android.os.Build
 import android.os.Bundle
+import android.view.Gravity
+import android.view.ViewGroup
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import androidx.appcompat.app.AlertDialog
+import android.widget.Button
+import android.widget.LinearLayout
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.net.HttpURLConnection
+import java.net.URL
 
 /**
- * WebView-based demo activity that loads the Tomady test dashboard.
- *
- * The WebView loads [demo.html] from the app's assets and exposes a
- * [DemoJSBridge] instance to JavaScript via [android.webkit.WebView.addJavascriptInterface].
+ * Native + WebView hybrid demo activity that loads the Tomady test dashboard
+ * and provides a simple, direct native GUI to ping the embedded HTTP server on port 7777.
  *
  * On Android 13+ (API 33+) this activity requests [Manifest.permission.POST_NOTIFICATIONS]
  * at runtime so the foreground server notification can be displayed.
@@ -34,7 +41,86 @@ class DemoActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+            setBackgroundColor(Color.parseColor("#0f0f23")) // Match dashboard background
+        }
+
+        // Native Panel Header
+        val header = TextView(this).apply {
+            text = "🔌 Native HTTP Server Console (Port 7777)"
+            textSize = 16f
+            setTextColor(Color.WHITE)
+            setTypeface(null, Typeface.BOLD)
+            setPadding(32, 24, 32, 8)
+            gravity = Gravity.CENTER_HORIZONTAL
+        }
+        container.addView(header)
+
+        // Native Ping Layout
+        val pingLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(32, 8, 32, 16)
+        }
+
+        val statusView = TextView(this).apply {
+            text = "Status: Idle (Ready to ping)"
+            textSize = 13f
+            setTextColor(Color.parseColor("#aaaaaa"))
+            setTypeface(Typeface.MONOSPACE)
+            setBackgroundColor(Color.parseColor("#16213e"))
+            setPadding(24, 24, 24, 24)
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = 16
+            }
+        }
+
+        val pingBtn = Button(this).apply {
+            text = "PING HTTP SERVER"
+            setBackgroundColor(Color.parseColor("#4CAF50"))
+            setTextColor(Color.WHITE)
+            setTypeface(null, Typeface.BOLD)
+            setPadding(16, 16, 16, 16)
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+            setOnClickListener {
+                performPing(statusView)
+            }
+        }
+
+        pingLayout.addView(statusView)
+        pingLayout.addView(pingBtn)
+        container.addView(pingLayout)
+
+        // Divider
+        val divider = android.view.View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                2
+            ).apply {
+                topMargin = 8
+                bottomMargin = 8
+            }
+            setBackgroundColor(Color.parseColor("#2a2a4a"))
+        }
+        container.addView(divider)
+
+        // WebView for testing dashboard
         val webView = WebView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                0,
+                1f
+            )
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             settings.allowFileAccess = true
@@ -52,97 +138,42 @@ class DemoActivity : AppCompatActivity() {
             addJavascriptInterface(DemoJSBridge(applicationContext), "TomadyBridge")
             loadUrl("file:///android_asset/demo.html")
         }
+        container.addView(webView)
 
-        setContentView(webView)
-
-        // Request notification permission on Android 13+
-        requestNotificationPermission()
+        setContentView(container)
     }
 
-    /**
-     * Requests [Manifest.permission.POST_NOTIFICATIONS] on Android 13+.
-     *
-     * This permission is required for the foreground server notification
-     * (shown via [com.tomady.nutrition.server.TomadyServerService]) to display.
-     * The service still runs even without the permission, but the notification
-     * will be silent/hidden.
-     *
-     * On Android 12 and below the permission is not needed.
-     */
-    private fun requestNotificationPermission() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-            // Permission not needed below Android 13
-            return
-        }
+    private fun performPing(statusView: TextView) {
+        statusView.text = "Status: Pinging..."
+        statusView.setTextColor(Color.YELLOW)
 
-        when {
-            // Already granted
-            ContextCompat.checkSelfPermission(
-                this, Manifest.permission.POST_NOTIFICATIONS
-            ) == PackageManager.PERMISSION_GRANTED -> {
-                android.util.Log.d(TAG, "POST_NOTIFICATIONS already granted")
-            }
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val url = URL("http://127.0.0.1:7777/ping")
+                val connection = url.openConnection() as HttpURLConnection
+                connection.requestMethod = "GET"
+                connection.connectTimeout = 3000
+                connection.readTimeout = 3000
 
-            // Should show rationale first
-            ActivityCompat.shouldShowRequestPermissionRationale(
-                this, Manifest.permission.POST_NOTIFICATIONS
-            ) -> {
-                showNotificationPermissionRationale()
-            }
-
-            // First time asking — just request
-            else -> {
-                ActivityCompat.requestPermissions(
-                    this,
-                    arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-                    REQUEST_CODE_POST_NOTIFICATIONS
-                )
+                val responseCode = connection.responseCode
+                if (responseCode == 200) {
+                    val responseText = connection.inputStream.bufferedReader().use { it.readText() }
+                    withContext(Dispatchers.Main) {
+                        statusView.text = "Success (200 OK):\n$responseText"
+                        statusView.setTextColor(Color.GREEN)
+                    }
+                } else {
+                    withContext(Dispatchers.Main) {
+                        statusView.text = "Error: HTTP $responseCode"
+                        statusView.setTextColor(Color.RED)
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    statusView.text = "Failed: ${e.message ?: "Unknown Exception"}"
+                    statusView.setTextColor(Color.RED)
+                }
             }
         }
-    }
-
-    /**
-     * Shows a simple dialog explaining why the notification permission is
-     * needed before requesting it.
-     */
-    private fun showNotificationPermissionRationale() {
-        AlertDialog.Builder(this)
-            .setTitle("Notification Permission")
-            .setMessage(
-                "Tomady runs a local HTTP server on your device so other apps " +
-                        "can access the nutrition services. A persistent notification " +
-                        "shows the server status and URL.\n\n" +
-                        "The server works without this permission, but the " +
-                        "notification will not appear until you grant it."
-            )
-            .setPositiveButton("Grant") { _, _ ->
-                ActivityCompat.requestPermissions(
-                    this,
-                    arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-                    REQUEST_CODE_POST_NOTIFICATIONS
-                )
-            }
-            .setNegativeButton("Not now", null)
-            .show()
-    }
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-
-        if (requestCode == REQUEST_CODE_POST_NOTIFICATIONS) {
-            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                android.util.Log.i(TAG, "POST_NOTIFICATIONS permission granted")
-            } else {
-                android.util.Log.w(TAG, "POST_NOTIFICATIONS permission denied")
-            }
-        }
-    }
-
-    private companion object {
-        private const val TAG = "DemoActivity"
     }
 }

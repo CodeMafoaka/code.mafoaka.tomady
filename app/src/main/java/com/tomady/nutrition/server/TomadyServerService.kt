@@ -35,9 +35,9 @@ class TomadyServerService : Service() {
         val app = applicationContext as TomadyApp
 
         // Ensure the API server is running
-        if (!::app.apiServer.isInitialized || !app.apiServer.isAlive) {
+        if (!app.isApiServerInitialized() || !app.apiServer.isAlive) {
             android.util.Log.w(TAG, "API server not running — starting it from service")
-            if (::app.apiServer.isInitialized) {
+            if (app.isApiServerInitialized()) {
                 app.apiServer.start()
             }
         }
@@ -46,7 +46,7 @@ class TomadyServerService : Service() {
         val url = "http://$ip:${TomadyRestApiServer.DEFAULT_PORT}"
 
         val openIntent = Intent(this, DemoActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
+            setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
         }
         val pendingIntent = PendingIntent.getActivity(
             this, 0, openIntent,
@@ -73,7 +73,7 @@ class TomadyServerService : Service() {
         // Optionally shut down the API server when service is destroyed
         try {
             val app = applicationContext as TomadyApp
-            if (::app.apiServer.isInitialized) {
+            if (app.isApiServerInitialized()) {
                 app.apiServer.shutdown()
             }
         } catch (e: Exception) {
