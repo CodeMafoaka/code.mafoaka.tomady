@@ -85,7 +85,7 @@ dependencies {
     implementation("org.nanohttpd:nanohttpd:2.3.1")
 
     // MediaPipe LLM Inference — Gemma 4 on-device
-    implementation("com.google.mediapipe:tasks-genai:0.10.14")
+    implementation("com.google.mediapipe:tasks-genai:0.10.33")
 
     // React Native bridge (provided by host app at runtime)
     compileOnly("com.facebook.react:react-android:0.73.0")
