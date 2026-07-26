@@ -38,6 +38,9 @@ data class Profile(
     @ColumnInfo(name = "date_of_birth")
     val dateOfBirth: String? = null,
 
+    @ColumnInfo(name = "age")
+    val age: Int? = null,
+
     @ColumnInfo(name = "height_cm")
     val heightCm: Double? = null,
 
@@ -58,6 +61,24 @@ data class Profile(
 
     @ColumnInfo(name = "goal")
     val goal: String? = null,
+
+    @ColumnInfo(name = "activity_level")
+    val activityLevel: String? = null,
+
+    @ColumnInfo(name = "allergies")
+    val allergies: String? = null,
+
+    @ColumnInfo(name = "intolerances")
+    val intolerances: String? = null,
+
+    @ColumnInfo(name = "conditions")
+    val conditions: String? = null,
+
+    @ColumnInfo(name = "restricted_foods")
+    val restrictedFoods: String? = null,
+
+    @ColumnInfo(name = "forbidden_by_doctor")
+    val forbiddenByDoctor: String? = null,
 
     @ColumnInfo(name = "created_at")
     val createdAt: Long = System.currentTimeMillis(),

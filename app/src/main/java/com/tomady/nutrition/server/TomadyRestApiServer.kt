@@ -273,6 +273,7 @@ class TomadyRestApiServer(
                 existing.copy(
                     displayName = json.get("displayName")?.asString ?: existing.displayName,
                     dateOfBirth = json.get("dateOfBirth")?.asString ?: existing.dateOfBirth,
+                    age = json.get("age")?.asInt ?: existing.age,
                     heightCm = json.get("heightCm")?.asDouble ?: existing.heightCm,
                     weightKg = json.get("weightKg")?.asDouble ?: existing.weightKg,
                     dailyCalorieTarget = json.get("dailyCalorieTarget")?.asInt ?: existing.dailyCalorieTarget,
@@ -280,6 +281,12 @@ class TomadyRestApiServer(
                     carbsGramsTarget = json.get("carbsGramsTarget")?.asInt ?: existing.carbsGramsTarget,
                     fatGramsTarget = json.get("fatGramsTarget")?.asInt ?: existing.fatGramsTarget,
                     goal = json.get("goal")?.asString ?: existing.goal,
+                    activityLevel = json.get("activityLevel")?.asString ?: existing.activityLevel,
+                    allergies = json.get("allergies")?.asString ?: existing.allergies,
+                    intolerances = json.get("intolerances")?.asString ?: existing.intolerances,
+                    conditions = json.get("conditions")?.asString ?: existing.conditions,
+                    restrictedFoods = json.get("restrictedFoods")?.asString ?: existing.restrictedFoods,
+                    forbiddenByDoctor = json.get("forbiddenByDoctor")?.asString ?: existing.forbiddenByDoctor,
                     updatedAt = System.currentTimeMillis()
                 ).also { dietService.updateProfile(it) }
             } else {
@@ -293,7 +300,14 @@ class TomadyRestApiServer(
                     proteinGramsTarget = json.get("proteinGramsTarget")?.asInt,
                     carbsGramsTarget = json.get("carbsGramsTarget")?.asInt,
                     fatGramsTarget = json.get("fatGramsTarget")?.asInt,
-                    goal = json.get("goal")?.asString
+                    goal = json.get("goal")?.asString,
+                    age = json.get("age")?.asInt,
+                    activityLevel = json.get("activityLevel")?.asString,
+                    allergies = json.get("allergies")?.asString,
+                    intolerances = json.get("intolerances")?.asString,
+                    conditions = json.get("conditions")?.asString,
+                    restrictedFoods = json.get("restrictedFoods")?.asString,
+                    forbiddenByDoctor = json.get("forbiddenByDoctor")?.asString
                 )
             }
         }

@@ -100,20 +100,34 @@ class DietAPIService(
         proteinGramsTarget: Int? = null,
         carbsGramsTarget: Int? = null,
         fatGramsTarget: Int? = null,
-        goal: String? = null
+        goal: String? = null,
+        age: Int? = null,
+        activityLevel: String? = null,
+        allergies: String? = null,
+        intolerances: String? = null,
+        conditions: String? = null,
+        restrictedFoods: String? = null,
+        forbiddenByDoctor: String? = null
     ): Profile = withContext(Dispatchers.IO) {
         val profile = Profile(
             id = UUID.randomUUID().toString(),
             userId = userId,
             displayName = displayName,
             dateOfBirth = dateOfBirth,
+            age = age,
             heightCm = heightCm,
             weightKg = weightKg,
             dailyCalorieTarget = dailyCalorieTarget,
             proteinGramsTarget = proteinGramsTarget,
             carbsGramsTarget = carbsGramsTarget,
             fatGramsTarget = fatGramsTarget,
-            goal = goal
+            goal = goal,
+            activityLevel = activityLevel,
+            allergies = allergies,
+            intolerances = intolerances,
+            conditions = conditions,
+            restrictedFoods = restrictedFoods,
+            forbiddenByDoctor = forbiddenByDoctor
         )
         dietDatabase.insertProfile(profile)
         profile

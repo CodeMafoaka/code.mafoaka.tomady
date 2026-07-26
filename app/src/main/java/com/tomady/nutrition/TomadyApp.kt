@@ -133,6 +133,7 @@ class TomadyApp : Application() {
             foodbService = foodbService
         )
         gemmaService = GemmaAndroidService(
+            context = this,
             dietDatabase = dietDatabase,
             dietService = dietService,
             foodbService = foodbService
