@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Tomady Server</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; background: #0f0f23; color: #e0e0e0; }
+  .container { padding: 24px 16px; max-width: 600px; margin: 0 auto; }
+  h1 { font-size: 24px; color: #4CAF50; margin-bottom: 4px; display: flex; align-items: center; gap: 10px; }
+  h1 .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; background: #555; transition: background .3s; }
+  h1 .dot.online { background: #4CAF50; box-shadow: 0 0 12px rgba(76,175,80,.5); }
+  h1 .dot.offline { background: #e53935; }
+  .subtitle { color: #888; font-size: 13px; margin-bottom: 24px; }
+  .server-card { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 16px; padding: 20px; margin-bottom: 16px; border: 1px solid #2a2a4a; }
+  .server-card h2 { font-size: 14px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+  .server-card .row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #1f1f35; font-size: 14px; }
+  .server-card .row:last-child { border-bottom: none; }
+  .server-card .label { color: #888; }
+  .server-card .value { color: #e0e0e0; font-weight: 500; font-family: 'Courier New', monospace; }
+  .server-card .value.ok { color: #4CAF50; }
+  .server-card .value.err { color: #e53935; }
+  .ping-btn { display: block; width: 100%; padding: 14px; border: none; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; color: #fff; background: linear-gradient(135deg, #4CAF50, #2E7D32); transition: transform .15s, box-shadow .15s; margin-bottom: 16px; }
+  .ping-btn:active { transform: scale(.97); }
+  .ping-btn:disabled { opacity: .5; }
+  .endpoints { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .endpoint { display: inline-block; padding: 6px 12px; background: #1f1f35; border-radius: 8px; font-size: 11px; color: #888; font-family: 'Courier New', monospace; }
+  .endpoint span { color: #4CAF50; }
+  .section { margin-top: 24px; }
+  .section h3 { font-size: 14px; color: #4CAF50; margin-bottom: 12px; }
+  .input-group { display: flex; gap: 8px; margin-bottom: 8px; }
+  .input-group input { flex: 1; padding: 10px 12px; background: #16213e; border: 1px solid #2a2a4a; border-radius: 8px; color: #e0e0e0; font-size: 14px; }
+  .input-group input::placeholder { color: #555; }
+  .btn { padding: 10px 16px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; color: #fff; background: #1976D2; transition: opacity .15s; white-space: nowrap; }
+  .btn:active { opacity: .7; }
+  .btn-sm { padding: 6px 12px; font-size: 12px; }
+  .btn-green { background: #4CAF50; }
+  .btn-orange { background: #FF9800; }
+  .btn-red { background: #e53935; }
+  .output { background: #16213e; border-radius: 8px; padding: 12px; margin-top: 8px; font-size: 12px; font-family: 'Courier New', monospace; max-height: 200px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; color: #aaa; }
+  .output .ok { color: #4CAF50; }
+  .output .err { color: #e53935; }
+  .output .info { color: #64B5F6; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>
+  <span class="dot" id="statusDot"></span>
+  Tomady Server
+</h1>
+<p class="subtitle">Embedded nutrition microservices on port 7777</p>
+
+<!-- ═══ Server Status Card ═══ -->
+<div class="server-card">
+  <h2>🔌 Server Status</h2>
+  <div class="row"><span class="label">Status</span><span class="value" id="statusText">Checking...</span></div>
+  <div class="row"><span class="label">Version</span><span class="value" id="versionText">—</span></div>
+  <div class="row"><span class="label">IP Address</span><span class="value" id="ipText">—</span></div>
+  <div class="row"><span class="label">Port</span><span class="value" id="portText">7777</span></div>
+  <div class="row"><span class="label">Gemma Model</span><span class="value" id="gemmaText">—</span></div>
+</div>
+
+<button class="ping-btn" id="pingBtn" onclick="ping()">🏓 Ping Server</button>
+
+<div class="output" id="pingOutput">Press "Ping Server" or wait for auto-ping...</div>
+
+<!-- ═══ Quick Endpoint Reference ═══ -->
+<div class="server-card">
+  <h2>📡 REST Endpoints</h2>
+  <p style="font-size:12px;color:#888;margin-bottom:10px;">All services are exposed via HTTP at <code style="color:#4CAF50;">http://&lt;phone-ip&gt;:7777</code></p>
+  <div class="endpoints">
+    <span class="endpoint"><span>GET</span> /ping</span>
+    <span class="endpoint"><span>GET</span> /api/v1/health</span>
+    <span class="endpoint"><span>GET</span> /api/v1/foodb/search?q=</span>
+    <span class="endpoint"><span>GET</span> /api/v1/foodb/food/{id}</span>
+    <span class="endpoint"><span>GET</span> /api/v1/diet/profile/{userId}</span>
+    <span class="endpoint"><span>PUT</span> /api/v1/diet/profile</span>
+    <span class="endpoint"><span>POST</span> /api/v1/diet/meal</span>
+    <span class="endpoint"><span>POST</span> /api/v1/gemma/ask</span>
+    <span class="endpoint"><span>POST</span> /api/v1/gemma/compute-recipe</span>
+    <span class="endpoint"><span>POST</span> /api/v1/worker/trigger-daily-suggestion</span>
+  </div>
+</div>
+
+<!-- ═══ Quick Test Controls ═══ -->
+<div class="section">
+  <h3>🧪 Quick Test</h3>
+
+  <!-- FooDB -->
+  <div class="server-card">
+    <h3>🔍 FooDB</h3>
+    <div class="input-group">
+      <input id="foodb-query" placeholder="Search foods..." onkeydown="if(event.key==='Enter') searchFood()">
+      <button class="btn btn-green btn-sm" onclick="searchFood()">Go</button>
+    </div>
+    <div class="output" id="foodbOutput">Search results...</div>
+  </div>
+
+  <!-- Diet -->
+  <div class="server-card">
+    <h3>🥗 Diet Profile</h3>
+    <div class="input-group">
+      <input id="diet-userid" placeholder="User ID" value="demo-user">
+      <button class="btn btn-sm" onclick="getProfile()">Fetch</button>
+    </div>
+    <div class="output" id="dietOutput">Profile data...</div>
+  </div>
+
+  <!-- Gemma -->
+  <div class="server-card">
+    <h3>🤖 Gemma</h3>
+    <div class="input-group">
+      <input id="gemma-question" placeholder="Ask a nutrition question...">
+      <button class="btn btn-orange btn-sm" onclick="askGemma()">Ask</button>
+    </div>
+    <div class="output" id="gemmaOutput">Answer...</div>
+  </div>
+</div>
+
+<script>
+const API = 'http://127.0.0.1:7777';
+
+// ── Auto-ping on load ──────────────────────────────────────────────
+ping();
+
+// ── Ping ───────────────────────────────────────────────────────────
+async function ping() {
+  const btn = document.getElementById('pingBtn');
+  const out = document.getElementById('pingOutput');
+  btn.disabled = true;
+  btn.textContent = '⏳ Pinging...';
+  out.innerHTML = '<span class="info">Pinging /ping...</span>';
+
+  try {
+    const res = await fetch(API + '/ping');
+    const data = await res.json();
+    out.innerHTML = '<span class="ok">✅ Ping succeeded!</span>\n' + JSON.stringify(data, null, 2);
+    btn.textContent = '🏓 Ping Server';
+
+    // Also fetch health
+    const healthRes = await fetch(API + '/api/v1/health');
+    const health = await healthRes.json();
+    updateStatus(health);
+  } catch (e) {
+    out.innerHTML = '<span class="err">❌ Ping failed:</span> ' + e.message;
+    btn.textContent = '🏓 Ping Server';
+    setOffline();
+  }
+  btn.disabled = false;
+}
+
+function updateStatus(health) {
+  document.getElementById('statusDot').className = 'dot online';
+  document.getElementById('statusText').textContent = 'Online';
+  document.getElementById('statusText').className = 'value ok';
+  document.getElementById('versionText').textContent = health.version || '—';
+  document.getElementById('ipText').textContent = health.ipAddress || '—';
+  document.getElementById('portText').textContent = health.port || '7777';
+  document.getElementById('gemmaText').textContent = health.gemmaLoaded ? '🟢 Loaded' : '🔴 Not loaded';
+}
+
+function setOffline() {
+  document.getElementById('statusDot').className = 'dot offline';
+  document.getElementById('statusText').textContent = 'Offline';
+  document.getElementById('statusText').className = 'value err';
+  document.getElementById('versionText').textContent = '—';
+  document.getElementById('ipText').textContent = '—';
+  document.getElementById('gemmaText').textContent = '—';
+}
+
+// ── FooDB ──────────────────────────────────────────────────────────
+async function searchFood() {
+  const q = document.getElementById('foodb-query').value.trim();
+  if (!q) return;
+  const el = document.getElementById('foodbOutput');
+  el.innerHTML = '<span class="info">Searching...</span>';
+  try {
+    const res = await fetch(API + '/api/v1/foodb/search?q=' + encodeURIComponent(q));
+    const data = await res.json();
+    el.innerHTML = JSON.stringify(data, null, 2);
+  } catch (e) {
+    el.innerHTML = '<span class="err">Error:</span> ' + e.message;
+  }
+}
+
+// ── Diet ───────────────────────────────────────────────────────────
+async function getProfile() {
+  const userId = document.getElementById('diet-userid').value.trim() || 'demo-user';
+  const el = document.getElementById('dietOutput');
+  el.innerHTML = '<span class="info">Fetching...</span>';
+  try {
+    const res = await fetch(API + '/api/v1/diet/profile/' + encodeURIComponent(userId));
+    const data = await res.json();
+    el.innerHTML = JSON.stringify(data, null, 2);
+  } catch (e) {
+    el.innerHTML = '<span class="err">Error:</span> ' + e.message;
+  }
+}
+
+// ── Gemma ──────────────────────────────────────────────────────────
+async function askGemma() {
+  const q = document.getElementById('gemma-question').value.trim();
+  if (!q) return;
+  const el = document.getElementById('gemmaOutput');
+  el.innerHTML = '<span class="info">Asking Gemma...</span>';
+  try {
+    const res = await fetch(API + '/api/v1/gemma/ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: q, userId: 'demo-user' })
+    });
+    const data = await res.json();
+    el.innerHTML = JSON.stringify(data, null, 2);
+  } catch (e) {
+    el.innerHTML = '<span class="err">Error:</span> ' + e.message;
+  }
+}
+</script>
+</body>
+</html>
