@@ -35,9 +35,10 @@ class TomadyServerService : Service() {
         val app = applicationContext as TomadyApp
 
         // Ensure the API server is running
-        if (!app::apiServer.isInitialized || !app.apiServer.isAlive) {
+        val isInitialized = try { app.apiServer; true } catch (_: UninitializedPropertyAccessException) { false }
+        if (!isInitialized || !app.apiServer.isAlive) {
             android.util.Log.w(TAG, "API server not running — starting it from service")
-            if (app::apiServer.isInitialized) {
+            if (isInitialized) {
                 app.apiServer.start()
             }
         }
@@ -73,7 +74,8 @@ class TomadyServerService : Service() {
         // Optionally shut down the API server when service is destroyed
         try {
             val app = applicationContext as TomadyApp
-            if (app::apiServer.isInitialized) {
+            val isInitialized = try { app.apiServer; true } catch (_: UninitializedPropertyAccessException) { false }
+            if (isInitialized) {
                 app.apiServer.shutdown()
             }
         } catch (e: Exception) {

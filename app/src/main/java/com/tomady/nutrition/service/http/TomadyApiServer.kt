@@ -42,7 +42,7 @@ internal class TomadyApiServer(
             newFixedLengthResponse(
                 Response.Status.INTERNAL_ERROR,
                 "application/json",
-                gson.toJson(mapOf<String, Any?>("code" to 500, "message" to exception.message ?: "Internal server error"))
+                gson.toJson(mapOf<String, Any?>("code" to 500, "message" to exception.message ?: "Internal server error") as Any)
             )
         }
     }
@@ -70,7 +70,7 @@ internal class TomadyApiServer(
             else -> newFixedLengthResponse(
                 Response.Status.NOT_FOUND,
                 "application/json",
-                gson.toJson(mapOf<String, Any?>("code" to 404, "message" to "Endpoint not found"))
+                gson.toJson(mapOf<String, Any?>("code" to 404, "message" to "Endpoint not found") as Any)
             )
         }
     }
@@ -342,12 +342,12 @@ internal class TomadyApiServer(
     private fun badRequest(message: String): Response = newFixedLengthResponse(
         Response.Status.BAD_REQUEST,
         "application/json",
-        gson.toJson(mapOf<String, Any?>("code" to 400, "message" to message))
+        gson.toJson(mapOf<String, Any?>("code" to 400, "message" to message) as Any)
     )
 
     private fun notFound(message: String): Response = newFixedLengthResponse(
         Response.Status.NOT_FOUND,
         "application/json",
-        gson.toJson(mapOf<String, Any?>("code" to 404, "message" to message))
+        gson.toJson(mapOf<String, Any?>("code" to 404, "message" to message) as Any)
     )
 }
