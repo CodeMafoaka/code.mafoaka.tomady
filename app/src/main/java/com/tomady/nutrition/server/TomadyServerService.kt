@@ -46,9 +46,8 @@ class TomadyServerService : Service() {
         val ip = TomadyRestApiServer.getLocalIpAddress()
         val url = "http://$ip:${TomadyRestApiServer.DEFAULT_PORT}"
 
-        val openIntent = Intent(this, DemoActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
-        }
+        val openIntent = Intent(this, DemoActivity::class.java)
+        openIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
         val pendingIntent = PendingIntent.getActivity(
             this, 0, openIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE

@@ -42,7 +42,10 @@ internal class TomadyApiServer(
             newFixedLengthResponse(
                 Response.Status.INTERNAL_ERROR,
                 "application/json",
-                gson.toJson(mapOf<String, Any?>("code" to 500, "message" to exception.message ?: "Internal server error") as Any)
+                val errorMap = HashMap<String, Any>()
+                errorMap["code"] = 500
+                errorMap["message"] = exception.message ?: "Internal server error"
+                gson.toJson(errorMap)
             )
         }
     }
@@ -70,7 +73,10 @@ internal class TomadyApiServer(
             else -> newFixedLengthResponse(
                 Response.Status.NOT_FOUND,
                 "application/json",
-                gson.toJson(mapOf<String, Any?>("code" to 404, "message" to "Endpoint not found") as Any)
+                val errorMap = HashMap<String, Any>()
+                errorMap["code"] = 404
+                errorMap["message"] = "Endpoint not found"
+                gson.toJson(errorMap)
             )
         }
     }
@@ -339,15 +345,25 @@ internal class TomadyApiServer(
         private const val TAG = "TomadyApiServer"
     }
 
-    private fun badRequest(message: String): Response = newFixedLengthResponse(
-        Response.Status.BAD_REQUEST,
-        "application/json",
-        gson.toJson(mapOf<String, Any?>("code" to 400, "message" to message) as Any)
-    )
+    private fun badRequest(message: String): Response {
+        val errorMap = HashMap<String, Any>()
+        errorMap["code"] = 400
+        errorMap["message"] = message
+        return newFixedLengthResponse(
+            Response.Status.BAD_REQUEST,
+            "application/json",
+            gson.toJson(errorMap)
+        )
+    }
 
-    private fun notFound(message: String): Response = newFixedLengthResponse(
-        Response.Status.NOT_FOUND,
-        "application/json",
-        gson.toJson(mapOf<String, Any?>("code" to 404, "message" to message) as Any)
-    )
+    private fun notFound(message: String): Response {
+        val errorMap = HashMap<String, Any>()
+        errorMap["code"] = 404
+        errorMap["message"] = message
+        return newFixedLengthResponse(
+            Response.Status.NOT_FOUND,
+            "application/json",
+            gson.toJson(errorMap)
+        )
+    }
 }
