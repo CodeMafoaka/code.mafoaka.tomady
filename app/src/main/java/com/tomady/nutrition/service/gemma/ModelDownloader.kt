@@ -10,9 +10,9 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * Utility for downloading and caching the Gemma GGUF model file on-device.
+ * Utility for downloading and caching the Gemma 4 GGUF model file on-device.
  *
- * Gemma 2B quantized GGUF models are ~1.5 GB — too large to bundle in the APK.
+ * Gemma 4 quantized GGUF models are ~2 GB — too large to bundle in the APK.
  * This class downloads the model at first launch and caches it in the app's
  * internal storage (`context.filesDir/models/`).
  *
@@ -37,7 +37,7 @@ import java.net.URL
  *
  * ## Model File Verification
  * The downloaded file is verified by checking its size (must be > 1 MB).
- * Real Gemma 2B 4-bit GGUF files are approximately 1.5 GB.
+ * Real Gemma 4 4-bit GGUF files are approximately 2 GB.
  */
 class ModelDownloader(private val context: Context) {
 
@@ -255,22 +255,22 @@ class ModelDownloader(private val context: Context) {
         /** Directory name inside filesDir where models are cached. */
         internal const val MODEL_DIR_NAME = "models"
 
-        /** Name of the Gemma GGUF model file. */
-        internal const val MODEL_FILE_NAME = "gemma-2b-it-cpu-int4.gguf"
+        /** Name of the Gemma 4 GGUF model file. */
+        internal const val MODEL_FILE_NAME = "gemma-4-2b-it-qat-int4.gguf"
 
         /**
-         * Kaggle API download URL for the MediaPipe-ready Gemma 2B GGUF model.
+         * Kaggle API download URL for the MediaPipe-ready Gemma 4 GGUF model.
          * Requires Kaggle credentials (username + API key) via [setKaggleCredentials].
          */
         internal const val KAGGLE_DOWNLOAD_URL =
-            "https://www.kaggle.com/api/v1/models/google/gemma/tfLite/gemma-2b-it-cpu-int4/1/download"
+            "https://www.kaggle.com/api/v1/models/google/gemma-4/tfLite/gemma-4-2b-it-qat-int4/1/download"
 
         /**
-         * HuggingFace mirror URL for the same model — no authentication required.
+         * HuggingFace mirror URL for Gemma 4 — no authentication required.
          * May be slower but works out of the box.
          */
         internal const val HF_MIRROR_DOWNLOAD_URL =
-            "https://huggingface.co/google/gemma-2b-it-gguf/resolve/main/gemma-2b-it-q4_k_m.gguf"
+            "https://huggingface.co/google/gemma-4-2b-it-gguf/resolve/main/gemma-4-2b-it-qat-int4.gguf"
 
         /**
          * Default download URL used when determining which source to use.
@@ -280,7 +280,7 @@ class ModelDownloader(private val context: Context) {
         internal val MODEL_DOWNLOAD_URL: String
             get() = HF_MIRROR_DOWNLOAD_URL
 
-        /** Minimum valid file size (1 MB) — real model is ~1.5 GB. */
+        /** Minimum valid file size (1 MB) — real model is ~2 GB. */
         private const val MIN_VALID_FILE_SIZE = 1_000_000L
 
         /** Connection timeout in milliseconds. */

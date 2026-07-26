@@ -15,6 +15,7 @@ import com.tomady.nutrition.data.local.foodb.FooDBLocalDatabase
 import com.tomady.nutrition.service.diet.DietAPIService
 import com.tomady.nutrition.service.foodb.FooDBDataAPIService
 import com.tomady.nutrition.service.gemma.GemmaAndroidService
+import com.tomady.nutrition.service.gemma.GemmaMealsSummary
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -310,7 +311,71 @@ class GemmaModule(reactContext: ReactApplicationContext) :
     }
 
     // ════════════════════════════════════════════════════════════════════
-    // SECTION 4 — Token Streaming
+    // SECTION 4 — Daily Insight Generation
+    // ════════════════════════════════════════════════════════════════════
+
+    /**
+     * Generates a personalised daily nutrition insight for the dashboard.
+     *
+     * The LLM analyses the user's profile and today's meals to produce
+     * a short, actionable insight (1-2 sentences).
+     *
+     * @param userId  The target user.
+     * @param today   Today's date in "yyyy-MM-dd" format.
+     * @param totalCalories  Total calories consumed today.
+     * @param calorieGoal    Daily calorie goal.
+     * @param totalProtein   Total protein consumed (g).
+     * @param proteinGoal    Daily protein goal (g).
+     * @param totalCarbs     Total carbs consumed (g).
+     * @param carbsGoal      Daily carbs goal (g).
+     * @param totalFat       Total fat consumed (g).
+     * @param fatGoal        Daily fat goal (g).
+     * @param mealCount      Number of meals logged today.
+     * @param promise Resolves with { text, category, rawResponse }.
+     */
+    @ReactMethod
+    fun getDailyInsight(
+        userId: String,
+        today: String,
+        totalCalories: Int,
+        calorieGoal: Int,
+        totalProtein: Int,
+        proteinGoal: Int,
+        totalCarbs: Int,
+        carbsGoal: Int,
+        totalFat: Int,
+        fatGoal: Int,
+        mealCount: Int,
+        promise: Promise
+    ) {
+        scope.launch {
+            try {
+                ensureModelLoaded()
+                val summary = GemmaMealsSummary(
+                    totalCalories = totalCalories,
+                    calorieGoal = calorieGoal,
+                    totalProtein = totalProtein,
+                    proteinGoal = proteinGoal,
+                    totalCarbs = totalCarbs,
+                    carbsGoal = carbsGoal,
+                    totalFat = totalFat,
+                    fatGoal = fatGoal,
+                    mealCount = mealCount
+                )
+                val result = withContext(Dispatchers.IO) {
+                    gemmaService.generateDailyInsight(userId, today, summary)
+                }
+                promise.resolve(mapToWritable(
+                    gson.fromJson(gson.toJson(result), Map::class.java)
+                ))
+            } catch (e: Exception) {
+                promise.reject("GEMMA_INSIGHT_ERROR", e.message, e)
+            }
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // SECTION 5 — Token Streaming
     // ════════════════════════════════════════════════════════════════════
 
     /**
@@ -374,7 +439,7 @@ class GemmaModule(reactContext: ReactApplicationContext) :
     }
 
     // ════════════════════════════════════════════════════════════════════
-    // SECTION 5 — Events (RN-side)
+    // SECTION 6 — Events (RN-side)
     // ════════════════════════════════════════════════════════════════════
 
     /**
@@ -402,7 +467,8 @@ class GemmaModule(reactContext: ReactApplicationContext) :
             "EVENT_ON_TOKEN" to "onGemmaToken",
             "EVENT_ON_STREAM_COMPLETE" to "onGemmaStreamComplete",
             "EVENT_ON_STREAM_ERROR" to "onGemmaStreamError",
-            "EVENT_ON_DOWNLOAD_PROGRESS" to "onModelDownloadProgress"
+            "EVENT_ON_DOWNLOAD_PROGRESS" to "onModelDownloadProgress",
+            "EVENT_ON_INSIGHT_READY" to "onGemmaInsightReady"
         )
     }
 

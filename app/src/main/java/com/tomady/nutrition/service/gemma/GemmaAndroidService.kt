@@ -23,7 +23,8 @@ import java.util.concurrent.atomic.AtomicReference
 
 /**
  * On-device LLM service for natural-language meal analysis, recipe computation,
- * and nutrition Q&A via **Google Gemma** running on **MediaPipe LLM Inference**.
+ * nutrition Q&A, and daily insight generation via **Google Gemma 4** running on
+ * **MediaPipe LLM Inference**.
  *
  * ## Architecture
  * ```
@@ -31,25 +32,31 @@ import java.util.concurrent.atomic.AtomicReference
  *                     │     GemmaAndroidService      │
  *                     │  (prompt engineering +       │
  *                     │   response parsing +         │
- *                     │   validation pipeline)       │
+ *                     │   validation pipeline +      │
+ *                     │   true token streaming)      │
  *                     └──────────┬──────────────────┘
  *                                │ calls
  *                     ┌──────────▼──────────────────┐
  *                     │    LlmInference (MediaPipe)  │
  *                     │  .generateResponse(prompt)   │
- *                     │  .generateResponseAsync(...) │
+ *                     │  .generateResponseAsync(...) │ ← true streaming
  *                     └─────────────────────────────┘
  * ```
  *
  * ## Model Lifecycle
  * 1. [loadModel] — Locates the GGUF model file (via [ModelDownloader]) and
  *    initialises a [LlmInference] instance.
- * 2. [computeRecipe] / [askQuestion] / [generateTokens] — Inference calls.
+ * 2. [computeRecipe] / [askQuestion] / [generateTokens] / [generateDailyInsight] — Inference calls.
  * 3. [release] — Closes the [LlmInference] and frees native resources.
+ *
+ * ## Streaming
+ * [generateTokens] uses [LlmInference.generateResponseAsync] with a callback
+ * to emit tokens as they are produced by the model, enabling true token-by-token
+ * streaming to the React Native UI.
  *
  * ## Fallback Behaviour
  * If no real model file is available (not downloaded yet), the service falls
- * back to [MockLLMEngine] so the app remains demonstrable without the ~1.5 GB
+ * back to [MockLLMEngine] so the app remains demonstrable without the ~2 GB
  * model download.
  *
  * @param context       Android context (application) for file access and MediaPipe init.
@@ -124,7 +131,7 @@ class GemmaAndroidService(
                     llmInference = LlmInference.createFromOptions(context, options)
                     isLoaded.set(true)
                     isUsingMock.set(false)
-                    modelVersion.set("gemma-2b-it (MediaPipe, 4-bit quantized)")
+                    modelVersion.set("gemma-4-2b-it (MediaPipe, QAT 4-bit)")
                     Log.i(TAG, "Gemma model loaded via MediaPipe from: $resolvedPath")
                     return@withContext true
                 } catch (e: Exception) {
@@ -345,15 +352,66 @@ class GemmaAndroidService(
     }
 
     // ══════════════════════════════════════════════════════════════════════
-    // SECTION 4 — Streaming Tokens
+    // SECTION 4 — Daily Insight Generation
     // ══════════════════════════════════════════════════════════════════════
 
     /**
-     * Generates LLM tokens as a [Flow] for real-time streaming.
+     * Generates a personalised daily nutrition insight for the dashboard.
+     *
+     * The LLM analyses the user's profile, today's meals, and macro intake
+     * to produce a short, actionable insight (1-2 sentences).
+     *
+     * @param userId   The target user (for profile + meals context).
+     * @param today    Today's date in "yyyy-MM-dd" format.
+     * @param mealsSummary  Pre-computed summary of today's meals (calories, protein, carbs, fat).
+     * @return A [GemmaInsightResult] with the insight text and a category tag.
+     * @throws GemmaException if the LLM fails.
+     */
+    suspend fun generateDailyInsight(
+        userId: String,
+        today: String,
+        mealsSummary: GemmaMealsSummary
+    ): GemmaInsightResult = withContext(Dispatchers.IO) {
+        ensureModelLoaded()
+
+        val profile = dietDatabase.getProfileByUserId(userId)
+        val contextPrompt = buildInsightPrompt(profile, today, mealsSummary)
+
+        val llmResponse = llmGenerate(contextPrompt)
+
+        // Determine category from the response content
+        val category = when {
+            llmResponse.contains("protéin", ignoreCase = true) &&
+                (llmResponse.contains("manque", ignoreCase = true) ||
+                 llmResponse.contains("insuffisant", ignoreCase = true) ||
+                 llmResponse.contains("augmenter", ignoreCase = true)) -> "protein_low"
+            llmResponse.contains("calori", ignoreCase = true) &&
+                llmResponse.contains("dépass", ignoreCase = true) -> "calories_over"
+            llmResponse.contains("hydrat", ignoreCase = true) ||
+                llmResponse.contains("eau", ignoreCase = true) -> "hydration"
+            llmResponse.contains("équilibr", ignoreCase = true) ||
+                llmResponse.contains("bien", ignoreCase = true) -> "balanced"
+            else -> "general"
+        }
+
+        GemmaInsightResult(
+            text = llmResponse.trim(),
+            category = category,
+            rawResponse = llmResponse
+        )
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // SECTION 5 — Streaming Tokens
+    // ══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Generates LLM tokens as a [Flow] for true token-by-token streaming.
      *
      * When the real MediaPipe model is loaded, tokens are streamed via
-     * [LlmInference.generateResponseAsync]. When the mock fallback is active,
-     * tokens are simulated by splitting the full response.
+     * [LlmInference.generateResponseAsync] with a callback that emits each
+     * token as it is produced. When the mock fallback is active, tokens are
+     * simulated by splitting the full response.
      *
      * Each emission is a partial token string. The flow completes when the
      * full response has been generated.
@@ -377,22 +435,39 @@ class GemmaAndroidService(
                     delay(token.length * TOKEN_DELAY_MS_PER_CHAR.toLong())
                 }
             } else {
-                // Real MediaPipe streaming via generateResponseAsync
+                // True streaming via MediaPipe generateResponseAsync with callback
                 val inference = llmInference ?: throw GemmaException(
                     message = "LLM inference instance is null",
                     rawResponse = null
                 )
 
-                val accumulated = StringBuilder()
-                val emitter = this
+                // Use kotlinx.coroutines channels to bridge callback → Flow
+                val channel = kotlinx.coroutines.channels.Channel<String>(capacity = kotlinx.coroutines.channels.Channel.UNLIMITED)
 
-                // Use the synchronous generateResponse for simplicity from a Flow
-                // For true streaming, we'd use generateResponseAsync with a callback,
-                // but the Flow builder doesn't easily support callback-based APIs.
-                // Instead, we generate the full response and emit it as a single token.
-                val response = inference.generateResponse(query)
-                if (response != null) {
-                    emit(response)
+                try {
+                    inference.generateResponseAsync(query) { partialResult, done ->
+                        if (!activeSessions.contains(sessionId)) {
+                            channel.close()
+                            return@generateResponseAsync
+                        }
+                        partialResult?.let { token ->
+                            channel.trySend(token)
+                        }
+                        if (done) {
+                            channel.close()
+                        }
+                    }
+
+                    // Emit tokens from the channel until closed
+                    for (token in channel) {
+                        emit(token)
+                    }
+                } catch (e: Exception) {
+                    channel.close()
+                    throw GemmaException(
+                        message = "Streaming failed: ${e.message}",
+                        rawResponse = null
+                    )
                 }
             }
         } finally {
@@ -408,7 +483,7 @@ class GemmaAndroidService(
     }
 
     // ══════════════════════════════════════════════════════════════════════
-    // SECTION 5 — LLM Engine (MediaPipe + Mock Fallback)
+    // SECTION 6 — LLM Engine (MediaPipe + Mock Fallback)
     // ══════════════════════════════════════════════════════════════════════
 
     /**
@@ -451,7 +526,7 @@ class GemmaAndroidService(
     }
 
     // ══════════════════════════════════════════════════════════════════════
-    // SECTION 6 — Prompt Engineering
+    // SECTION 7 — Prompt Engineering
     // ══════════════════════════════════════════════════════════════════════
 
     /**
@@ -522,8 +597,57 @@ class GemmaAndroidService(
         """.trimMargin()
     }
 
+    /**
+     * Builds a prompt for generating a daily nutrition insight.
+     *
+     * The insight should be short (1-2 sentences), personalised, and actionable.
+     * It focuses on what the user did well and what they can improve.
+     */
+    private fun buildInsightPrompt(
+        profile: Profile?,
+        today: String,
+        meals: GemmaMealsSummary
+    ): String {
+        val profileContext = if (profile != null) {
+            """|
+                |User profile:
+                |- Goal: ${profile.goal ?: "Not specified"}
+                |- Daily calorie target: ${profile.dailyCalorieTarget ?: "Not set"}
+                |- Weight: ${profile.weightKg?.let { "${it}kg" } ?: "Unknown"}
+                |- Activity level: ${profile.activityLevel ?: "Unknown"}
+                |- Allergies: ${profile.allergies ?: "None"}
+                |- Conditions: ${profile.conditions ?: "None"}
+            """.trimMargin()
+        } else {
+            "User profile: No profile available."
+        }
+
+        return """|
+            |You are Tomady, a professional nutritionist AI.
+            |
+            |$profileContext
+            |
+            |Today's date: $today
+            |Today's intake:
+            |- Calories consumed: ${meals.totalCalories} kcal (target: ${meals.calorieGoal} kcal)
+            |- Protein: ${meals.totalProtein}g (target: ${meals.proteinGoal}g)
+            |- Carbs: ${meals.totalCarbs}g (target: ${meals.carbsGoal}g)
+            |- Fat: ${meals.totalFat}g (target: ${meals.fatGoal}g)
+            |- Number of meals: ${meals.mealCount}
+            |
+            |Generate a short daily insight (1-2 sentences, in French).
+            |Focus on:
+            |1. What the user did well today
+            |2. One specific, actionable recommendation for improvement
+            |Be encouraging but honest. Reference specific numbers.
+            |Do NOT use markdown. Write as plain text.
+            |
+            |Insight:
+        """.trimMargin()
+    }
+
     // ══════════════════════════════════════════════════════════════════════
-    // SECTION 7 — Response Parsing & Validation
+    // SECTION 8 — Response Parsing & Validation
     // ══════════════════════════════════════════════════════════════════════
 
     /**
@@ -695,6 +819,31 @@ class GemmaException(
     val rawResponse: String?
 ) : Exception(message)
 
+/**
+ * Summary of today's meals, pre-computed by the caller.
+ * Used by [GemmaAndroidService.generateDailyInsight] to build the insight prompt.
+ */
+data class GemmaMealsSummary(
+    val totalCalories: Int,
+    val calorieGoal: Int,
+    val totalProtein: Int,
+    val proteinGoal: Int,
+    val totalCarbs: Int,
+    val carbsGoal: Int,
+    val totalFat: Int,
+    val fatGoal: Int,
+    val mealCount: Int
+)
+
+/**
+ * Result of a daily insight generation request.
+ */
+data class GemmaInsightResult(
+    val text: String,
+    val category: String,
+    val rawResponse: String
+)
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Mock LLM Engine (development/demo fallback)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -713,6 +862,10 @@ internal object MockLLMEngine {
             prompt.contains("ingredients", ignoreCase = true) -> {
                 generateMockRecipe(prompt)
             }
+            prompt.contains("Insight:", ignoreCase = true) &&
+            prompt.contains("Today's intake", ignoreCase = true) -> {
+                generateMockInsight(prompt)
+            }
             prompt.contains("diabetes", ignoreCase = true) ||
             prompt.contains("coca-cola", ignoreCase = true) ||
             prompt.contains("sugar", ignoreCase = true) -> {
@@ -724,9 +877,46 @@ internal object MockLLMEngine {
                 generateMockGeneralAnswer(prompt)
             }
             else -> {
-                "I'm Tomady, your nutrition assistant. I can help you plan meals, " +
-                        "analyze recipes, and answer nutrition questions. " +
-                        "Please provide more details about what you'd like to know."
+                "Bonjour, je suis Tomady, votre assistant nutrition. " +
+                        "Je peux vous aider à planifier vos repas, analyser vos recettes " +
+                        "et répondre à vos questions sur la nutrition. " +
+                        "N'hésitez pas à me poser vos questions !"
+            }
+        }
+    }
+
+    private fun generateMockInsight(prompt: String): String {
+        // Extract numbers from the prompt for contextual mock insight
+        val calorieMatch = Regex("Calories consumed: (\\d+)").find(prompt)
+        val proteinMatch = Regex("Protein: (\\d+)g").find(prompt)
+        val mealCountMatch = Regex("Number of meals: (\\d+)").find(prompt)
+
+        val calories = calorieMatch?.groupValues?.get(1)?.toIntOrNull() ?: 0
+        val protein = proteinMatch?.groupValues?.get(1)?.toIntOrNull() ?: 0
+        val mealCount = mealCountMatch?.groupValues?.get(1)?.toIntOrNull() ?: 0
+
+        return when {
+            calories == 0 -> {
+                "Vous n'avez pas encore enregistré de repas aujourd'hui. " +
+                "Commencez par ajouter votre petit-déjeuner pour bien démarrer la journée !"
+            }
+            protein < 50 -> {
+                "Bon début avec $calories kcal aujourd'hui ! " +
+                "Cependant, vos protéines sont un peu faibles ($protein g). " +
+                "Essayez d'ajouter une source de protéines comme du poulet grillé, des œufs ou du poisson à votre prochain repas."
+            }
+            calories > 2500 -> {
+                "Aujourd'hui vous avez consommé $calories kcal, ce qui dépasse votre objectif. " +
+                "Pour le reste de la journée, privilégiez les légumes et évitez les aliments riches en calories."
+            }
+            mealCount <= 1 -> {
+                "Vous avez déjà $calories kcal au compteur avec seulement $mealCount repas. " +
+                "N'oubliez pas de prendre un déjeuner équilibré avec des protéines et des légumes !"
+            }
+            else -> {
+                "Excellent travail aujourd'hui ! Avec $calories kcal et $protein g de protéines " +
+                "répartis sur $mealCount repas, vous êtes sur la bonne voix pour atteindre votre objectif. " +
+                "Continuez comme ça !"
             }
         }
     }
