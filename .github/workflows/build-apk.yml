@@ -22,27 +22,10 @@ jobs:
           distribution: "temurin"
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
-        with:
-          api-level: ${{ env.ANDROID_COMPILE_SDK }}
-          build-tools: ${{ env.ANDROID_BUILD_TOOLS }}
-      - name: Ensure cmdline-tools + accept licenses
-        env:
-          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
+      - name: Install build tools and platform
         run: |
-          if [ -x "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" ]; then
-            yes | "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" --licenses || true
-          elif [ -x "${ANDROID_SDK_ROOT}/tools/bin/sdkmanager" ]; then
-            yes | "${ANDROID_SDK_ROOT}/tools/bin/sdkmanager" --licenses || true
-          else
-            echo "sdkmanager not found; continuing (runner may already have SDK)."
-          fi
-      - name: Verify repo and strings resource
-        run: |
-          echo "Branch: $(git rev-parse --abbrev-ref HEAD)"
-          echo "Commit: $(git rev-parse HEAD)"
-          git ls-files | grep app/src/main/res/values/strings.xml || true
-          ls -l app/src/main/res || true
-          cat app/src/main/res/values/strings.xml || true
+          sdkmanager --install "platforms;android-${{ env.ANDROID_COMPILE_SDK }}" "build-tools;${{ env.ANDROID_BUILD_TOOLS }}" 2>&1 || true
+          yes | sdkmanager --licenses 2>&1 || true
       - name: Build services APK
         run: ./gradlew assembleServicesDebug -PserviceApiPort=7777 --no-daemon --stacktrace 2>&1 | tee build-log.txt
       - name: Print build output
@@ -52,14 +35,15 @@ jobs:
           tail -100 build-log.txt 2>/dev/null || true
           echo "=== APK output directory ==="
           find app/build/outputs -name "*.apk" 2>/dev/null || echo "No APK files found"
-          echo "=== Build outputs ==="
+          echo "=== Build outputs tree ==="
           ls -la app/build/outputs/ 2>/dev/null || echo "No outputs directory"
           ls -la app/build/outputs/apk/ 2>/dev/null || echo "No apk directory"
+          ls -laR app/build/outputs/apk/services/ 2>/dev/null || echo "No services apk directory"
       - name: Upload services APK
         uses: actions/upload-artifact@v4
         with:
           name: tomady-services-debug
-          path: app/build/outputs/apk/services/debug/*.apk
+          path: app/build/outputs/apk/**/*.apk
           compression-level: 0
           if-no-files-found: warn
 
@@ -75,37 +59,23 @@ jobs:
           distribution: "temurin"
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
-        with:
-          api-level: ${{ env.ANDROID_COMPILE_SDK }}
-          build-tools: ${{ env.ANDROID_BUILD_TOOLS }}
-      - name: Ensure cmdline-tools + accept licenses
-        env:
-          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
+      - name: Install build tools and platform
         run: |
-          if [ -x "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" ]; then
-            yes | "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" --licenses || true
-          elif [ -x "${ANDROID_SDK_ROOT}/tools/bin/sdkmanager" ]; then
-            yes | "${ANDROID_SDK_ROOT}/tools/bin/sdkmanager" --licenses || true
-          else
-            echo "sdkmanager not found; continuing (runner may already have SDK)."
-          fi
-      - name: Verify repo and strings resource
-        run: |
-          echo "Branch: $(git rev-parse --abbrev-ref HEAD)"
-          echo "Commit: $(git rev-parse HEAD)"
-          git ls-files | grep app/src/main/res/values/strings.xml || true
-          ls -l app/src/main/res || true
-          cat app/src/main/res/values/strings.xml || true
+          sdkmanager --install "platforms;android-${{ env.ANDROID_COMPILE_SDK }}" "build-tools;${{ env.ANDROID_BUILD_TOOLS }}" 2>&1 || true
+          yes | sdkmanager --licenses 2>&1 || true
       - name: Build demo APK
         run: ./gradlew assembleDemoDebug -PserviceApiPort=7777 --no-daemon --stacktrace 2>&1 | tee build-log.txt
-      - name: Print build errors on failure
-        if: failure()
-        run: tail -200 build-log.txt 2>/dev/null || true
+      - name: Print build output
+        if: always()
+        run: |
+          echo "=== Last 100 lines of build log ==="
+          tail -100 build-log.txt 2>/dev/null || true
+          find app/build/outputs -name "*.apk" 2>/dev/null || echo "No APK files found"
       - name: Upload demo APK
         uses: actions/upload-artifact@v4
         with:
           name: tomady-demo-debug
-          path: app/build/outputs/apk/demo/debug/*.apk
+          path: app/build/outputs/apk/**/*.apk
           compression-level: 0
           if-no-files-found: warn
 
@@ -121,36 +91,22 @@ jobs:
           distribution: "temurin"
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
-        with:
-          api-level: ${{ env.ANDROID_COMPILE_SDK }}
-          build-tools: ${{ env.ANDROID_BUILD_TOOLS }}
-      - name: Ensure cmdline-tools + accept licenses
-        env:
-          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
+      - name: Install build tools and platform
         run: |
-          if [ -x "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" ]; then
-            yes | "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" --licenses || true
-          elif [ -x "${ANDROID_SDK_ROOT}/tools/bin/sdkmanager" ]; then
-            yes | "${ANDROID_SDK_ROOT}/tools/bin/sdkmanager" --licenses || true
-          else
-            echo "sdkmanager not found; continuing (runner may already have SDK)."
-          fi
-      - name: Verify repo and strings resource
-        run: |
-          echo "Branch: $(git rev-parse --abbrev-ref HEAD)"
-          echo "Commit: $(git rev-parse HEAD)"
-          git ls-files | grep app/src/main/res/values/strings.xml || true
-          ls -l app/src/main/res || true
-          cat app/src/main/res/values/strings.xml || true
+          sdkmanager --install "platforms;android-${{ env.ANDROID_COMPILE_SDK }}" "build-tools;${{ env.ANDROID_BUILD_TOOLS }}" 2>&1 || true
+          yes | sdkmanager --licenses 2>&1 || true
       - name: Build full APK
         run: ./gradlew assembleFullDebug -PserviceApiPort=7777 --no-daemon --stacktrace 2>&1 | tee build-log.txt
-      - name: Print build errors on failure
-        if: failure()
-        run: tail -200 build-log.txt 2>/dev/null || true
+      - name: Print build output
+        if: always()
+        run: |
+          echo "=== Last 100 lines of build log ==="
+          tail -100 build-log.txt 2>/dev/null || true
+          find app/build/outputs -name "*.apk" 2>/dev/null || echo "No APK files found"
       - name: Upload full APK
         uses: actions/upload-artifact@v4
         with:
           name: tomady-full-debug
-          path: app/build/outputs/apk/full/debug/*.apk
+          path: app/build/outputs/apk/**/*.apk
           compression-level: 0
           if-no-files-found: warn
