@@ -32,6 +32,8 @@ class DietAPIService(
     private val foodbService: FooDBDataAPIService
 ) {
 
+    private val gson = com.google.gson.Gson()
+
     // ══════════════════════════════════════════════════════════════════════
     // SECTION 1 — User CRUD
     // ══════════════════════════════════════════════════════════════════════
@@ -100,7 +102,14 @@ class DietAPIService(
         proteinGramsTarget: Int? = null,
         carbsGramsTarget: Int? = null,
         fatGramsTarget: Int? = null,
-        goal: String? = null
+        goal: String? = null,
+        age: Int? = null,
+        activityLevel: String? = null,
+        allergies: String? = null,
+        intolerances: String? = null,
+        conditions: String? = null,
+        restrictedFoods: String? = null,
+        forbiddenByDoctor: String? = null
     ): Profile = withContext(Dispatchers.IO) {
         val profile = Profile(
             id = UUID.randomUUID().toString(),
@@ -113,7 +122,14 @@ class DietAPIService(
             proteinGramsTarget = proteinGramsTarget,
             carbsGramsTarget = carbsGramsTarget,
             fatGramsTarget = fatGramsTarget,
-            goal = goal
+            goal = goal,
+            age = age,
+            activityLevel = activityLevel,
+            allergies = allergies,
+            intolerances = intolerances,
+            conditions = conditions,
+            restrictedFoods = restrictedFoods,
+            forbiddenByDoctor = forbiddenByDoctor
         )
         dietDatabase.insertProfile(profile)
         profile
@@ -458,9 +474,24 @@ class DietAPIService(
         }
 
         val goalLower = (profile.goal ?: "").lowercase()
+        val conditionsJson = profile.conditions ?: "[]"
+        val allergiesJson = profile.allergies ?: "[]"
+
+        // Parse conditions from JSON string (stored as JSON array by mobile app)
+        val conditionList = try {
+            gson.fromJson(conditionsJson, Array<String>::class.java).toList()
+        } catch (e: Exception) {
+            // Fallback: check goal text if JSON parsing fails
+            emptyList()
+        }
+
+        val hasDiabetes = goalLower.contains("diabetes") || goalLower.contains("diabetic") ||
+            conditionList.any { it.lowercase().contains("diabetes") || it.lowercase().contains("diabetic") }
+        val hasHypertension = goalLower.contains("hypertension") || goalLower.contains("blood pressure") ||
+            conditionList.any { it.lowercase().contains("hypertension") || it.lowercase().contains("blood pressure") }
 
         // Diabetes check: flag high sugar
-        if (goalLower.contains("diabetes") || goalLower.contains("diabetic")) {
+        if (hasDiabetes) {
             if (nutrition.totalSugarG > SUGAR_THRESHOLD_DIABETES_G) {
                 warnings.add(
                     "High sugar content (${String.format("%.1f", nutrition.totalSugarG)}g). " +
@@ -470,7 +501,7 @@ class DietAPIService(
         }
 
         // Hypertension check: flag high sodium
-        if (goalLower.contains("hypertension") || goalLower.contains("blood pressure") || goalLower.contains("low sodium")) {
+        if (hasHypertension || goalLower.contains("low sodium")) {
             if (nutrition.totalSodiumMg > SODIUM_THRESHOLD_HYPERTENSION_MG) {
                 warnings.add(
                     "High sodium content (${String.format("%.0f", nutrition.totalSodiumMg)}mg). " +
@@ -532,7 +563,7 @@ class DietAPIService(
         // Adjust calories based on goal
         val goalLower = (profile.goal ?: "").lowercase()
         val activityMultiplier = 1.2 // sedentary default; could be made configurable
-        var maintenanceCalories = (bmr * activityMultiplier).toInt()
+        var maintenanceCalories = bmr.toInt()
 
         val adjustedCalories = when {
             goalLower.contains("lose") || goalLower.contains("weight loss") ->
@@ -625,12 +656,24 @@ class DietAPIService(
     private fun estimateBMR(profile: Profile): Double? {
         val weight = profile.weightKg ?: return null
         val height = profile.heightCm ?: return null
-        // Age not in profile yet; default to 30 if not available
-        val age = 30
+        // Age now stored in profile; default to 30 as fallback
+        val age = profile.age ?: 30
 
-        // Mifflin-St Jeor: BMR = 10 * weight(kg) + 6.25 * height(cm) - 5 * age + S
-        // S = +5 for males, -161 for females (default to female for safety)
-        return 10.0 * weight + 6.25 * height - 5.0 * age - 161.0
+        // Adjust BMR based on activity level (Mifflin-St Jeor + activity multiplier)
+        val activityMultiplier = when (profile.activityLevel?.lowercase()) {
+            "sédentaire", "sedentary" -> 1.2
+            "modéré", "moderate", "léger", "light" -> 1.375
+            "actif", "active" -> 1.55
+            "très actif", "very active" -> 1.725
+            else -> 1.2 // default: sedentary
+        }
+
+        // Mifflin-St Jeor: BMR = 10 * weight(kg) + 6.25 * height(cm) - 5 * age - 161 (female)
+        // Using female formula as default (conservative for calorie targets)
+        val bmr = 10.0 * weight + 6.25 * height - 5.0 * age - 161.0
+
+        // Return TDEE = BMR * activityMultiplier
+        return bmr * activityMultiplier
     }
 
     companion object {

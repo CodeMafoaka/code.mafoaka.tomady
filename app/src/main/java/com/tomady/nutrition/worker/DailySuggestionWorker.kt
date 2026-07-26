@@ -273,6 +273,20 @@ class DailySuggestionWorker(
             profile.fatGramsTarget?.let { sb.appendLine("Fat target: ${it}g") }
             profile.weightKg?.let { sb.appendLine("Weight: ${it}kg") }
             profile.heightCm?.let { sb.appendLine("Height: ${it}cm") }
+            profile.age?.let { sb.appendLine("Age: ${it}") }
+            profile.activityLevel?.let { sb.appendLine("Activity level: ${it}") }
+            if (!profile.allergies.isNullOrBlank() && profile.allergies != "[]") {
+                sb.appendLine("Allergies: ${profile.allergies}")
+            }
+            if (!profile.conditions.isNullOrBlank() && profile.conditions != "[]") {
+                sb.appendLine("Medical conditions: ${profile.conditions}")
+            }
+            if (!profile.restrictedFoods.isNullOrBlank() && profile.restrictedFoods != "[]") {
+                sb.appendLine("Restricted foods: ${profile.restrictedFoods}")
+            }
+            if (!profile.forbiddenByDoctor.isNullOrBlank() && profile.forbiddenByDoctor != "[]") {
+                sb.appendLine("Forbidden by doctor: ${profile.forbiddenByDoctor}")
+            }
             sb.appendLine()
         }
 

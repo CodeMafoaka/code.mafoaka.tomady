@@ -184,9 +184,16 @@ class DemoJSBridge(context: Context) {
                 val updated = existing.copy(
                     goal = params["goal"] as? String ?: existing.goal,
                     displayName = params["displayName"] as? String ?: existing.displayName,
+                    age = (params["age"] as? Number)?.toInt() ?: existing.age,
                     heightCm = (params["heightCm"] as? Number)?.toDouble() ?: existing.heightCm,
                     weightKg = (params["weightKg"] as? Number)?.toDouble() ?: existing.weightKg,
-                    dailyCalorieTarget = (params["dailyCalorieTarget"] as? Number)?.toInt() ?: existing.dailyCalorieTarget
+                    dailyCalorieTarget = (params["dailyCalorieTarget"] as? Number)?.toInt() ?: existing.dailyCalorieTarget,
+                    activityLevel = params["activityLevel"] as? String ?: existing.activityLevel,
+                    allergies = params["allergies"] as? String ?: existing.allergies,
+                    intolerances = params["intolerances"] as? String ?: existing.intolerances,
+                    conditions = params["conditions"] as? String ?: existing.conditions,
+                    restrictedFoods = params["restrictedFoods"] as? String ?: existing.restrictedFoods,
+                    forbiddenByDoctor = params["forbiddenByDoctor"] as? String ?: existing.forbiddenByDoctor
                 )
                 dietService.updateProfile(updated)
                 gson.toJson(mapOf("ok" to true, "data" to updated))
@@ -195,9 +202,16 @@ class DemoJSBridge(context: Context) {
                     userId = userId,
                     goal = params["goal"] as? String,
                     displayName = params["displayName"] as? String,
+                    age = (params["age"] as? Number)?.toInt(),
                     heightCm = (params["heightCm"] as? Number)?.toDouble(),
                     weightKg = (params["weightKg"] as? Number)?.toDouble(),
-                    dailyCalorieTarget = (params["dailyCalorieTarget"] as? Number)?.toInt()
+                    dailyCalorieTarget = (params["dailyCalorieTarget"] as? Number)?.toInt(),
+                    activityLevel = params["activityLevel"] as? String,
+                    allergies = params["allergies"] as? String,
+                    intolerances = params["intolerances"] as? String,
+                    conditions = params["conditions"] as? String,
+                    restrictedFoods = params["restrictedFoods"] as? String,
+                    forbiddenByDoctor = params["forbiddenByDoctor"] as? String
                 )
                 gson.toJson(mapOf("ok" to true, "data" to created))
             }

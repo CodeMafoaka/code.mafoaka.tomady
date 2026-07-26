@@ -127,6 +127,7 @@ internal class TomadyApiServer(
         val displayName = body["displayName"] as? String
         val avatarUrl = body["avatarUrl"] as? String
         val dateOfBirth = body["dateOfBirth"] as? String
+        val age = (body["age"] as? Number)?.toInt()
         val heightCm = (body["heightCm"] as? Number)?.toDouble()
         val weightKg = (body["weightKg"] as? Number)?.toDouble()
         val dailyCalorieTarget = (body["dailyCalorieTarget"] as? Number)?.toInt()
@@ -134,19 +135,32 @@ internal class TomadyApiServer(
         val carbsGramsTarget = (body["carbsGramsTarget"] as? Number)?.toInt()
         val fatGramsTarget = (body["fatGramsTarget"] as? Number)?.toInt()
         val goal = body["goal"] as? String
+        val activityLevel = body["activityLevel"] as? String
+        val allergies = body["allergies"] as? String
+        val intolerances = body["intolerances"] as? String
+        val conditions = body["conditions"] as? String
+        val restrictedFoods = body["restrictedFoods"] as? String
+        val forbiddenByDoctor = body["forbiddenByDoctor"] as? String
 
         val profile = if (existingProfile != null) {
             existingProfile.copy(
                 displayName = displayName ?: existingProfile.displayName,
                 avatarUrl = avatarUrl ?: existingProfile.avatarUrl,
                 dateOfBirth = dateOfBirth ?: existingProfile.dateOfBirth,
+                age = age ?: existingProfile.age,
                 heightCm = heightCm ?: existingProfile.heightCm,
                 weightKg = weightKg ?: existingProfile.weightKg,
                 dailyCalorieTarget = dailyCalorieTarget ?: existingProfile.dailyCalorieTarget,
                 proteinGramsTarget = proteinGramsTarget ?: existingProfile.proteinGramsTarget,
                 carbsGramsTarget = carbsGramsTarget ?: existingProfile.carbsGramsTarget,
                 fatGramsTarget = fatGramsTarget ?: existingProfile.fatGramsTarget,
-                goal = goal ?: existingProfile.goal
+                goal = goal ?: existingProfile.goal,
+                activityLevel = activityLevel ?: existingProfile.activityLevel,
+                allergies = allergies ?: existingProfile.allergies,
+                intolerances = intolerances ?: existingProfile.intolerances,
+                conditions = conditions ?: existingProfile.conditions,
+                restrictedFoods = restrictedFoods ?: existingProfile.restrictedFoods,
+                forbiddenByDoctor = forbiddenByDoctor ?: existingProfile.forbiddenByDoctor
             ).also {
                 runService { services.dietService.updateProfile(it) }
             }
@@ -156,13 +170,20 @@ internal class TomadyApiServer(
                     userId = userId,
                     displayName = displayName,
                     dateOfBirth = dateOfBirth,
+                    age = age,
                     heightCm = heightCm,
                     weightKg = weightKg,
                     dailyCalorieTarget = dailyCalorieTarget,
                     proteinGramsTarget = proteinGramsTarget,
                     carbsGramsTarget = carbsGramsTarget,
                     fatGramsTarget = fatGramsTarget,
-                    goal = goal
+                    goal = goal,
+                    activityLevel = activityLevel,
+                    allergies = allergies,
+                    intolerances = intolerances,
+                    conditions = conditions,
+                    restrictedFoods = restrictedFoods,
+                    forbiddenByDoctor = forbiddenByDoctor
                 )
             }
         }

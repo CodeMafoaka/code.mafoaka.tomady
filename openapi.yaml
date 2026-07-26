@@ -480,6 +480,9 @@ components:
           type: string
           format: date
           nullable: true
+        age:
+          type: integer
+          nullable: true
         heightCm:
           type: number
           format: double
@@ -501,6 +504,24 @@ components:
           type: integer
           nullable: true
         goal:
+          type: string
+          nullable: true
+        activityLevel:
+          type: string
+          nullable: true
+        allergies:
+          type: string
+          nullable: true
+        intolerances:
+          type: string
+          nullable: true
+        conditions:
+          type: string
+          nullable: true
+        restrictedFoods:
+          type: string
+          nullable: true
+        forbiddenByDoctor:
           type: string
           nullable: true
         createdAt:
@@ -524,6 +545,9 @@ components:
           type: string
           format: date
           nullable: true
+        age:
+          type: integer
+          nullable: true
         heightCm:
           type: number
           format: double
@@ -547,11 +571,33 @@ components:
         goal:
           type: string
           nullable: true
+        activityLevel:
+          type: string
+          nullable: true
+        allergies:
+          type: string
+          nullable: true
+        intolerances:
+          type: string
+          nullable: true
+        conditions:
+          type: string
+          nullable: true
+        restrictedFoods:
+          type: string
+          nullable: true
+        forbiddenByDoctor:
+          type: string
+          nullable: true
       example:
         displayName: "Jane Doe"
         heightCm: 170.0
         weightKg: 65.2
-        goal: "Lower blood sugar"
+        goal: "Perte de poids"
+        age: 28
+        activityLevel: "actif"
+        allergies: '[Arachides, Fruits de mer]'
+        conditions: '[Légère hypertension]'
     BioRecord:
       type: object
       properties:
