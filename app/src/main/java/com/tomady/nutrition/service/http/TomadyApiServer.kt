@@ -335,6 +335,10 @@ internal class TomadyApiServer(
         gson.toJson(data)
     )
 
+    companion object {
+        private const val TAG = "TomadyApiServer"
+    }
+
     private fun badRequest(message: String): Response = newFixedLengthResponse(
         Response.Status.BAD_REQUEST,
         "application/json",
