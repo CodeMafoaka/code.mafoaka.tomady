@@ -1,6 +1,10 @@
 package com.tomady.nutrition
 
 import android.app.Application
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.Intent
+import android.os.Build
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
@@ -9,6 +13,7 @@ import com.tomady.nutrition.data.AppDatabase
 import com.tomady.nutrition.data.local.diet.DietDatabase
 import com.tomady.nutrition.data.local.foodb.FooDBLocalDatabase
 import com.tomady.nutrition.server.TomadyRestApiServer
+import com.tomady.nutrition.server.TomadyServerService
 import com.tomady.nutrition.service.diet.DietAPIService
 import com.tomady.nutrition.service.foodb.FooDBDataAPIService
 import com.tomady.nutrition.service.gemma.GemmaAndroidService
@@ -24,8 +29,9 @@ import java.util.concurrent.TimeUnit
  * On startup:
  * 1. Builds the [AppDatabase] (Diet + FooDB).
  * 2. Creates wrapper databases and service singletons.
- * 3. Starts the embedded [TomadyRestApiServer] for local-network HTTP access.
- * 4. Schedules a [PeriodicWorkRequest] for [DailySuggestionWorker].
+ * 3. Creates notification channels.
+ * 4. Starts the embedded [TomadyRestApiServer] via [TomadyServerService] (foreground).
+ * 5. Schedules a [PeriodicWorkRequest] for [DailySuggestionWorker].
  */
 class TomadyApp : Application() {
 
@@ -61,9 +67,40 @@ class TomadyApp : Application() {
         super.onCreate()
 
         instance = this
+        createNotificationChannels()
         initializeServices()
         startApiServer()
         scheduleDailySuggestionWorker()
+    }
+
+    /**
+     * Creates notification channels required for foreground service
+     * notifications and WorkManager progress notifications.
+     */
+    private fun createNotificationChannels() {
+        // The TomadyServerService also creates its own channel, but we create
+        // it here too to ensure it exists before the service starts.
+        val serverChannel = NotificationChannel(
+            NOTIFICATION_CHANNEL_SERVER,
+            "Tomady Server",
+            NotificationManager.IMPORTANCE_LOW
+        ).apply {
+            description = "Shows when the Tomady REST API server is running"
+            setShowBadge(false)
+        }
+
+        val workerChannel = NotificationChannel(
+            NOTIFICATION_CHANNEL_WORKER,
+            "Tomady Background Tasks",
+            NotificationManager.IMPORTANCE_MIN
+        ).apply {
+            description = "Notifications for background task progress"
+            setShowBadge(false)
+        }
+
+        val manager = getSystemService(NotificationManager::class.java)
+        manager.createNotificationChannel(serverChannel)
+        manager.createNotificationChannel(workerChannel)
     }
 
     /**
@@ -103,12 +140,14 @@ class TomadyApp : Application() {
     }
 
     /**
-     * Starts the embedded REST API server for local-network access.
+     * Starts the embedded REST API server and foreground service.
      *
      * The server binds to **0.0.0.0** on port **7777**, making it accessible
-     * from any device on the same WiFi network. External React Native (or any
-     * HTTP) clients can call the REST endpoints instead of using native bridge
-     * modules.
+     * from any device on the same WiFi network.
+     *
+     * A persistent notification is shown via [TomadyServerService] so the
+     * user knows the server is running. On Android 13+, the notification
+     * requires the `POST_NOTIFICATIONS` runtime permission to display.
      *
      * Server URL: `http://<device-wifi-ip>:7777/api/v1/health`
      */
@@ -126,6 +165,14 @@ class TomadyApp : Application() {
                 TAG,
                 "REST API running at http://${TomadyRestApiServer.getLocalIpAddress()}:${TomadyRestApiServer.DEFAULT_PORT}/api/v1/health"
             )
+
+            // Start foreground service to keep the server alive
+            val serviceIntent = Intent(this, TomadyServerService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent)
+            } else {
+                startService(serviceIntent)
+            }
         } catch (e: Exception) {
             android.util.Log.e(TAG, "Failed to start REST API server", e)
         }
@@ -173,6 +220,13 @@ class TomadyApp : Application() {
     companion object {
         /** Tag used for identifying the daily suggestion work in logs and debugging. */
         const val WORK_TAG_DAILY_SUGGESTION = "daily_suggestion"
+
+        /** Notification channel for the persistent server notification. */
+        const val NOTIFICATION_CHANNEL_SERVER = "tomady_server"
+
+        /** Notification channel for WorkManager background task progress. */
+        const val NOTIFICATION_CHANNEL_WORKER = "tomady_worker"
+
         private const val TAG = "TomadyApp"
 
         @Volatile
