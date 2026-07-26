@@ -22,27 +22,40 @@ jobs:
           distribution: "temurin"
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
-      - name: Accept SDK licenses and list installed packages
-        run: |
-          yes | sdkmanager --licenses 2>&1 || true
-          sdkmanager --list_installed 2>&1 || sdkmanager --list 2>&1 | head -30 || true
+      - name: Accept SDK licenses
+        run: yes | sdkmanager --licenses 2>&1 || true
       - name: Build services APK
-        run: ./gradlew assembleServicesDebug -PserviceApiPort=7777 --no-daemon --info 2>&1 | tee build-log.txt
-      - name: Diagnostic — find all outputs
+        run: ./gradlew assembleServicesDebug -PserviceApiPort=7777 --no-daemon --stacktrace
+      - name: Diagnostic
         if: always()
         run: |
-          echo "=== FIND APK FILES ==="
-          find app/build -name "*.apk" -o -name "*.aab" 2>/dev/null || echo "No APK/AAB found"
-          echo "=== FIND outputs directory ==="
-          find app/build/outputs -type f 2>/dev/null | head -50 || echo "No outputs directory"
-          echo "=== LAST 80 LINES OF BUILD LOG ==="
-          tail -80 build-log.txt 2>/dev/null || true
+          {
+            echo "=== ANDROID_HOME ==="
+            echo "$ANDROID_HOME"
+            echo "=== SDK packages ==="
+            sdkmanager --list_installed 2>&1 || true
+            echo "=== build.gradle.kts ==="
+            cat app/build.gradle.kts
+            echo "=== FIND all build outputs ==="
+            find app/build -type f -name "*.apk" -o -name "*.aab" -o -name "*.ap_" 2>/dev/null || echo "NO APK/AAB/AP_ found"
+            echo "=== FIND outputs dir ==="
+            find app/build/outputs -type f 2>/dev/null | head -100 || echo "No outputs dir"
+            echo "=== ls -laR app/build/outputs/apk ==="
+            ls -laR app/build/outputs/apk/ 2>/dev/null || echo "No apk dir exists"
+            echo "=== ls -laR app/build/intermediates/apk ==="
+            find app/build/intermediates -type f -name "*.apk" 2>/dev/null | head -20 || echo "No intermediates apk"
+          } > diagnostic.txt 2>&1
+      - name: Upload diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-diagnostic
+          path: diagnostic.txt
+          if-no-files-found: warn
       - name: Upload services APK
         uses: actions/upload-artifact@v4
         with:
           name: tomady-services-debug
-          path: |
-            app/build/outputs/apk/**/*.apk
-            app/build/outputs/apk/*.apk
+          path: app/build/outputs/apk/**/*.apk
           compression-level: 0
           if-no-files-found: warn
