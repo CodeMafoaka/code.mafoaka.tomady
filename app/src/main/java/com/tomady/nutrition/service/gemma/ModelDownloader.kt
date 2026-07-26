@@ -19,24 +19,62 @@ import java.net.URL
  * ## Usage
  * ```kotlin
  * val downloader = ModelDownloader(context)
+ * downloader.setKaggleCredentials("your-username", "your-api-key")
  * val path = downloader.ensureModelDownloaded()
- * // path = "/data/data/.../files/models/gemma-2b-it-cpu-int4.gguf"
  * ```
  *
- * ## Model Source
- * The default model URL points to a Hugging Face mirror of the MediaPipe-ready
- * Gemma 2B GGUF (4-bit quantized, CPU-optimized). You can override the URL
- * via [MODEL_DOWNLOAD_URL] or by passing a custom URL to [downloadModel].
+ * ## Authentication
+ * The default download URL uses the **Kaggle API**, which requires **Kaggle credentials**
+ * (username + API key). Set them via [setKaggleCredentials] before downloading.
+ *
+ * To get your Kaggle API key:
+ * 1. Go to https://www.kaggle.com/settings
+ * 2. Scroll to "API" section
+ * 3. Click "Create New Token" — downloads kaggle.json containing username + key
+ *
+ * If no credentials are set, the service falls back to a **HuggingFace mirror**
+ * which doesn't require authentication but may have slower download speeds.
  *
  * ## Model File Verification
- * A SHA-256 check is performed after download to ensure file integrity.
- * If the check fails, the file is deleted and re-downloaded.
+ * The downloaded file is verified by checking its size (must be > 1 MB).
+ * Real Gemma 2B 4-bit GGUF files are approximately 1.5 GB.
  */
 class ModelDownloader(private val context: Context) {
 
     /** Directory where model files are cached. */
     private val modelDir: File
         get() = File(context.filesDir, MODEL_DIR_NAME).also { it.mkdirs() }
+
+    /**
+     * Sets Kaggle API credentials for authenticated model download.
+     *
+     * Required when using the default Kaggle download URL.
+     * Without credentials, the download will fall back to the HuggingFace mirror.
+     *
+     * @param username Your Kaggle username.
+     * @param apiKey   Your Kaggle API key (from kaggle.json).
+     */
+    fun setKaggleCredentials(username: String, apiKey: String) {
+        this.kaggleUsername = username
+        this.kaggleApiKey = apiKey
+    }
+
+    /**
+     * Returns whether Kaggle credentials have been configured.
+     */
+    fun hasKaggleCredentials(): Boolean = kaggleUsername != null && kaggleApiKey != null
+
+    /**
+     * The primary download URL. Uses Kaggle API if credentials are available,
+     * otherwise uses the HuggingFace mirror.
+     */
+    fun getEffectiveDownloadUrl(): String {
+        return if (hasKaggleCredentials()) {
+            KAGGLE_DOWNLOAD_URL
+        } else {
+            HF_MIRROR_DOWNLOAD_URL
+        }
+    }
 
     /**
      * Ensures the Gemma model file is downloaded and returns its absolute path.
@@ -110,35 +148,61 @@ class ModelDownloader(private val context: Context) {
         return if (modelFile.exists()) modelFile.length() else 0L
     }
 
+    // ── Internal state ────────────────────────────────────────────────
+
+    private var kaggleUsername: String? = null
+    private var kaggleApiKey: String? = null
+
     // ── Private helpers ────────────────────────────────────────────────
 
     /**
      * Downloads the model file from a URL to the specified file path.
      *
+     * Automatically selects the best URL based on available credentials:
+     * - If Kaggle credentials are set, uses the Kaggle API URL
+     * - Otherwise, uses the HuggingFace mirror
+     *
      * @param targetFile The file to write the downloaded data to.
-     * @param urlStr The URL of the model file.
+     * @param urlStr The URL of the model file (auto-selected if not specified).
      * @return The absolute path of the downloaded file, or null on failure.
      */
     private suspend fun downloadModel(
         targetFile: File,
-        urlStr: String = MODEL_DOWNLOAD_URL
+        urlStr: String? = null
     ): String? = withContext(Dispatchers.IO) {
         var connection: HttpURLConnection? = null
         try {
-            Log.i(TAG, "Starting model download from $urlStr")
+            // Select the best URL
+            val effectiveUrl = urlStr ?: getEffectiveDownloadUrl()
+            Log.i(TAG, "Starting model download from $effectiveUrl")
             downloadProgress = 0.0f
 
-            val url = URL(urlStr)
+            val url = URL(effectiveUrl)
             connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
             connection.connectTimeout = CONNECT_TIMEOUT_MS
             connection.readTimeout = READ_TIMEOUT_MS
             connection.setRequestProperty("Accept", "application/octet-stream")
+
+            // Add Kaggle authentication if available
+            if (hasKaggleCredentials() && effectiveUrl.contains("kaggle.com")) {
+                val combined = "$kaggleUsername:$kaggleApiKey"
+                val basicAuth = "Basic " + android.util.Base64.encodeToString(
+                    combined.toByteArray(), android.util.Base64.NO_WRAP
+                )
+                connection.setRequestProperty("Authorization", basicAuth)
+            }
+
             connection.connect()
 
             val responseCode = connection.responseCode
             if (responseCode != HttpURLConnection.HTTP_OK) {
-                Log.e(TAG, "Download failed with HTTP $responseCode")
+                val errorMsg = if (responseCode == HttpURLConnection.HTTP_UNAUTHORIZED) {
+                    "Kaggle API requires authentication (HTTP 401). Call setKaggleCredentials(username, apiKey) before downloading, or use the HuggingFace mirror."
+                } else {
+                    "Download failed with HTTP $responseCode"
+                }
+                Log.e(TAG, errorMsg)
                 downloadProgress = null
                 return@withContext null
             }
@@ -195,16 +259,26 @@ class ModelDownloader(private val context: Context) {
         internal const val MODEL_FILE_NAME = "gemma-2b-it-cpu-int4.gguf"
 
         /**
-         * Default download URL for the MediaPipe-ready Gemma 2B GGUF model.
-         *
-         * This points to the official Google Kaggle / HuggingFace model repository.
-         * For the hackathon, ensure this URL points to a valid Gemma model file
-         * that is compatible with MediaPipe tasks-genai.
-         *
-         * If you have a different model source, override via downloadFromUrl().
+         * Kaggle API download URL for the MediaPipe-ready Gemma 2B GGUF model.
+         * Requires Kaggle credentials (username + API key) via [setKaggleCredentials].
          */
-        internal const val MODEL_DOWNLOAD_URL =
+        internal const val KAGGLE_DOWNLOAD_URL =
             "https://www.kaggle.com/api/v1/models/google/gemma/tfLite/gemma-2b-it-cpu-int4/1/download"
+
+        /**
+         * HuggingFace mirror URL for the same model — no authentication required.
+         * May be slower but works out of the box.
+         */
+        internal const val HF_MIRROR_DOWNLOAD_URL =
+            "https://huggingface.co/google/gemma-2b-it-gguf/resolve/main/gemma-2b-it-q4_k_m.gguf"
+
+        /**
+         * Default download URL used when determining which source to use.
+         * This is dynamically selected based on whether Kaggle credentials are set.
+         * For raw downloadFromUrl() calls, this defaults to HuggingFace mirror.
+         */
+        internal val MODEL_DOWNLOAD_URL: String
+            get() = HF_MIRROR_DOWNLOAD_URL
 
         /** Minimum valid file size (1 MB) — real model is ~1.5 GB. */
         private const val MIN_VALID_FILE_SIZE = 1_000_000L
