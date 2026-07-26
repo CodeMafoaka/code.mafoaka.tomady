@@ -63,6 +63,9 @@ class TomadyApp : Application() {
     lateinit var apiServer: TomadyRestApiServer
         private set
 
+    /** Helper to check if the api server is initialized */
+    fun isApiServerInitialized(): Boolean = ::apiServer.isInitialized
+
     override fun onCreate() {
         super.onCreate()
 

@@ -20,13 +20,15 @@ import java.util.Locale
 import java.util.Date
 import kotlinx.coroutines.runBlocking
 
+import com.tomady.nutrition.TomadyApp
+
 internal class TomadyApiServer(
     context: Context,
     port: Int = BuildConfig.SERVICE_API_PORT
 ) : NanoHTTPD(port) {
 
     private val gson = Gson()
-    private val services = TomadyServiceModule(context.applicationContext)
+    private val app: TomadyApp get() = TomadyApp.getInstance()
     private val workManager = WorkManager.getInstance(context.applicationContext)
 
     fun startServer() {
@@ -104,7 +106,7 @@ internal class TomadyApiServer(
         if (query.isNullOrBlank()) {
             return badRequest("Missing required query parameter 'q'.")
         }
-        val results = runService { services.foodbService.searchFood(query) }
+        val results = runService { app.foodbService.searchFood(query) }
         return ok(mapOf("query" to query, "results" to results))
     }
 
@@ -113,7 +115,7 @@ internal class TomadyApiServer(
         if (foodId == null) {
             return badRequest("Invalid foodId path parameter.")
         }
-        val detail = runService { services.foodbService.getFoodDetails(foodId) }
+        val detail = runService { app.foodbService.getFoodDetails(foodId) }
         return if (detail != null) {
             ok(mapOf("food" to detail.food, "nutrients" to detail.nutrients))
         } else {
@@ -123,7 +125,7 @@ internal class TomadyApiServer(
 
     private fun handleGetProfile(uri: String): Response {
         val userId = uri.removePrefix("/v1/users/").removeSuffix("/profile")
-        val profile = runService { services.dietService.getProfile(userId) }
+        val profile = runService { app.dietService.getProfile(userId) }
         return if (profile != null) {
             ok(profile)
         } else {
@@ -133,7 +135,7 @@ internal class TomadyApiServer(
 
     private fun handleUpdateProfile(uri: String, body: Map<String, Any>): Response {
         val userId = uri.removePrefix("/v1/users/").removeSuffix("/profile")
-        val existingProfile = runService { services.dietService.getProfile(userId) }
+        val existingProfile = runService { app.dietService.getProfile(userId) }
         val displayName = body["displayName"] as? String
         val avatarUrl = body["avatarUrl"] as? String
         val dateOfBirth = body["dateOfBirth"] as? String
@@ -157,12 +159,12 @@ internal class TomadyApiServer(
                 carbsGramsTarget = carbsGramsTarget ?: existingProfile.carbsGramsTarget,
                 fatGramsTarget = fatGramsTarget ?: existingProfile.fatGramsTarget,
                 goal = goal ?: existingProfile.goal
-            ).also {
-                runService { services.dietService.updateProfile(it) }
+            ).also { updatedProfile ->
+                runService { app.dietService.updateProfile(updatedProfile) }
             }
         } else {
             runService {
-                services.dietService.createProfile(
+                app.dietService.createProfile(
                     userId = userId,
                     displayName = displayName,
                     dateOfBirth = dateOfBirth,
@@ -187,7 +189,7 @@ internal class TomadyApiServer(
             return badRequest("Missing required field 'date'.")
         }
         val record = runService {
-            services.dietService.recordBio(
+            app.dietService.recordBio(
                 userId = userId,
                 date = date,
                 weightKg = (body["weightKg"] as? Number)?.toDouble(),
@@ -206,7 +208,7 @@ internal class TomadyApiServer(
         val startDate = queryParameters["startDate"]
         val endDate = queryParameters["endDate"]
         val entries = if (!startDate.isNullOrBlank() && !endDate.isNullOrBlank()) {
-            runService { services.dietService.getDishHistoryInRange(userId, startDate, endDate) }
+            runService { app.dietService.getDishHistoryInRange(userId, startDate, endDate) }
         } else {
             emptyList<DishHistory>()
         }
@@ -220,7 +222,7 @@ internal class TomadyApiServer(
             return badRequest("Missing required field 'date'.")
         }
         val history = runService {
-            services.dietService.logMealConsumption(
+            app.dietService.logMealConsumption(
                 userId = userId,
                 dishId = body["dishId"] as? String,
                 date = date,
@@ -234,7 +236,7 @@ internal class TomadyApiServer(
 
     private fun handleDishNutrition(uri: String): Response {
         val dishId = uri.removePrefix("/v1/dishes/").removeSuffix("/nutrition")
-        val nutrition = runService { services.dietService.computeDishNutrition(dishId) }
+        val nutrition = runService { app.dietService.computeDishNutrition(dishId) }
         return if (nutrition != null) {
             ok(nutrition)
         } else {
@@ -248,10 +250,10 @@ internal class TomadyApiServer(
         if (prompt.isNullOrBlank() || userId.isNullOrBlank()) {
             return badRequest("Missing required fields 'prompt' and 'userId'.")
         }
-        if (!services.gemmaService.isModelLoaded()) {
-            runService { services.gemmaService.loadModel(null) }
+        if (!app.gemmaService.isModelLoaded()) {
+            runService { app.gemmaService.loadModel(null) }
         }
-        val recipeResult: GemmaRecipeResult = runService { services.gemmaService.computeRecipe(prompt, userId) }
+        val recipeResult: GemmaRecipeResult = runService { app.gemmaService.computeRecipe(prompt, userId) }
         return ok(recipeResult)
     }
 
@@ -261,16 +263,16 @@ internal class TomadyApiServer(
         if (question.isNullOrBlank()) {
             return badRequest("Missing required field 'question'.")
         }
-        if (!services.gemmaService.isModelLoaded()) {
-            runService { services.gemmaService.loadModel(null) }
+        if (!app.gemmaService.isModelLoaded()) {
+            runService { app.gemmaService.loadModel(null) }
         }
-        val answerResult: GemmaAnswerResult = runService { services.gemmaService.askQuestion(question, userId) }
+        val answerResult: GemmaAnswerResult = runService { app.gemmaService.askQuestion(question, userId) }
         return ok(answerResult)
     }
 
     private fun handleGetDailySuggestions(): Response {
         val today = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
-        val suggestions = runService { services.dietService.getDailySuggestions(today) }
+        val suggestions = runService { app.dietService.getDailySuggestions(today) }
         return ok(mapOf("date" to today, "suggestions" to suggestions))
     }
 
