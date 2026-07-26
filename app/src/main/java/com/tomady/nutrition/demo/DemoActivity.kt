@@ -1,8 +1,10 @@
 package com.tomady.nutrition.demo
 
 import android.annotation.SuppressLint
+import android.os.Build
 import android.os.Bundle
 import android.webkit.WebChromeClient
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.appcompat.app.AppCompatActivity
@@ -29,6 +31,9 @@ class DemoActivity : AppCompatActivity() {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             settings.allowFileAccess = true
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+            }
             settings.loadWithOverviewMode = true
             settings.useWideViewPort = true
             settings.builtInZoomControls = false
