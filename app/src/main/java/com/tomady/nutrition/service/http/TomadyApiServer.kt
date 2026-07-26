@@ -39,12 +39,12 @@ internal class TomadyApiServer(
         return try {
             route(session)
         } catch (exception: Exception) {
+            val errorMap = HashMap<String, Any>()
+            errorMap["code"] = 500
+            errorMap["message"] = exception.message ?: "Internal server error"
             newFixedLengthResponse(
                 Response.Status.INTERNAL_ERROR,
                 "application/json",
-                val errorMap = HashMap<String, Any>()
-                errorMap["code"] = 500
-                errorMap["message"] = exception.message ?: "Internal server error"
                 gson.toJson(errorMap)
             )
         }
@@ -70,14 +70,16 @@ internal class TomadyApiServer(
             uri == "/v1/gemma/download" && method == Method.POST -> handleTriggerModelDownload()
             uri == "/v1/worker/suggestions/daily" && method == Method.GET -> handleGetDailySuggestions()
             uri == "/v1/worker/suggestions/daily" && method == Method.POST -> handleTriggerDailySuggestions()
-            else -> newFixedLengthResponse(
-                Response.Status.NOT_FOUND,
-                "application/json",
+            else -> {
                 val errorMap = HashMap<String, Any>()
                 errorMap["code"] = 404
                 errorMap["message"] = "Endpoint not found"
-                gson.toJson(errorMap)
-            )
+                newFixedLengthResponse(
+                    Response.Status.NOT_FOUND,
+                    "application/json",
+                    gson.toJson(errorMap)
+                )
+            }
         }
     }
 
