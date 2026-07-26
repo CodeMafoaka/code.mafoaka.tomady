@@ -13,13 +13,8 @@ android {
         minSdk = 26
         targetSdk = 34
         versionCode = 1
-        versionName = "0.2.0"
+        versionName = "0.1.0"
         buildConfigField("int", "SERVICE_API_PORT", project.findProperty("serviceApiPort")?.toString() ?: "7777")
-
-        // NDK ABI filters for MediaPipe native libraries
-        ndk {
-            abiFilters += listOf("arm64-v8a", "x86_64")
-        }
     }
 
     flavorDimensions += "distribution"
@@ -83,12 +78,9 @@ dependencies {
     // JSON
     implementation("com.google.code.gson:gson:2.10.1")
 
-    // MediaPipe GenAI — on-device Gemma inference
-    implementation("com.google.mediapipe:tasks-genai:0.10.14")
-
-    // HTTP server for local OpenAPI endpoint exposure
-    implementation("org.nanohttpd:nanohttpd:2.3.1")
-
     // AppCompat (for DemoActivity)
     implementation("androidx.appcompat:appcompat:1.6.1")
+
+    // NanoHTTPd — embedded HTTP server for local-network REST API
+    implementation("org.nanohttpd:nanohttpd:2.3.1")
 }

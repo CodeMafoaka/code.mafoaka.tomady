@@ -8,10 +8,6 @@ import androidx.room.PrimaryKey
 
 /**
  * Room entity representing an extended user profile with health goals and metrics.
- *
- * Champs ajoutés v2 : allergies, intolerances, conditions, restrictedFoods,
- * forbiddenByDoctor, age, activityLevel — correspondant au modèle de données
- * de l'application mobile Tomady (voir database.js).
  */
 @Entity(
     tableName = "profile",
@@ -42,9 +38,6 @@ data class Profile(
     @ColumnInfo(name = "date_of_birth")
     val dateOfBirth: String? = null,
 
-    @ColumnInfo(name = "age")
-    val age: Int? = null,
-
     @ColumnInfo(name = "height_cm")
     val heightCm: Double? = null,
 
@@ -65,24 +58,6 @@ data class Profile(
 
     @ColumnInfo(name = "goal")
     val goal: String? = null,
-
-    @ColumnInfo(name = "activity_level")
-    val activityLevel: String? = null,
-
-    @ColumnInfo(name = "allergies")
-    val allergies: String? = null,
-
-    @ColumnInfo(name = "intolerances")
-    val intolerances: String? = null,
-
-    @ColumnInfo(name = "conditions")
-    val conditions: String? = null,
-
-    @ColumnInfo(name = "restricted_foods")
-    val restrictedFoods: String? = null,
-
-    @ColumnInfo(name = "forbidden_by_doctor")
-    val forbiddenByDoctor: String? = null,
 
     @ColumnInfo(name = "created_at")
     val createdAt: Long = System.currentTimeMillis(),

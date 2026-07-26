@@ -72,32 +72,11 @@ class FooDBDataAPIService(
     /**
      * Searches the local food catalog by name or scientific name.
      *
-     * Implements a **cache-first** strategy: checks the local database first.
-     * If the local result is empty, falls back to the remote FooDB API, caches
-     * the results locally, and returns them.
-     *
      * @param query Free-text search string.
-     * @return List of matching [FoodItem] entries (may be empty if both local and remote return nothing).
+     * @return List of matching [FoodItem] entries (may be empty).
      */
     suspend fun searchFood(query: String): List<FoodItem> = withContext(Dispatchers.IO) {
-        // 1. Check local cache first
-        val localResults = localDatabase.searchFood(query)
-        if (localResults.isNotEmpty()) {
-            return@withContext localResults
-        }
-
-        // 2. Cache miss — try remote API
-        try {
-            val remoteResults = searchRemoteFood(query)
-            // 3. Cache remote results locally
-            if (remoteResults.isNotEmpty()) {
-                localDatabase.insertFoods(remoteResults)
-            }
-            remoteResults
-        } catch (e: Exception) {
-            // Remote failed (network error, API error, etc.) — return empty
-            emptyList()
-        }
+        localDatabase.searchFood(query)
     }
 
     /**
