@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.tomady.nutrition.data.local.diet.dao.BioRecordDao
 import com.tomady.nutrition.data.local.diet.dao.DishDao
 import com.tomady.nutrition.data.local.diet.dao.DishHistoryDao
