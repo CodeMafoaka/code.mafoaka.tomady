@@ -176,6 +176,12 @@ class GemmaAndroidService(
     }
 
     /**
+     * Returns `true` if a GGUF model file is already cached on disk
+     * (instant check — no network involved).
+     */
+    fun isModelCached(): Boolean = modelDownloader.getCachedModelPath() != null
+
+    /**
      * Returns the current download progress (0.0 to 1.0), or null if no
      * download is in progress.
      */

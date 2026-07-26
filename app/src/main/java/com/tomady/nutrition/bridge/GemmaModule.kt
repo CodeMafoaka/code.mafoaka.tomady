@@ -172,13 +172,14 @@ class GemmaModule(reactContext: ReactApplicationContext) :
     }
 
     /**
-     * Triggers the Gemma model download in the background.
+     * Triggers the Gemma model download with progress events.
      *
      * This is a **long-running** operation (~1.5 GB download). Progress
-     * events are emitted via `onModelDownloadProgress`.
+     * events are emitted via `onModelDownloadProgress` events while the
+     * download is in progress.
      *
-     * After download completes, call [loadModel] again to activate the
-     * real model.
+     * After download completes, the model is automatically reloaded so
+     * subsequent [computeRecipe] / [askQuestion] calls use the real model.
      *
      * @param promise Resolves with the model file path once download completes.
      */
@@ -186,17 +187,16 @@ class GemmaModule(reactContext: ReactApplicationContext) :
     fun downloadModel(promise: Promise) {
         scope.launch {
             try {
-                // First check if already cached
-                val cached = gemmaService.downloadModelIfNeeded()
-                if (cached != null) {
-                    promise.resolve(cached)
-                    return@launch
-                }
-
-                // Poll progress while downloading (runs on IO internally)
                 withContext(Dispatchers.IO) {
-                    kotlinx.coroutines.launch {
-                        // Poll progress every 500ms while download is active
+                    // 1. Check cache instantly — no download
+                    if (gemmaService.isModelCached()) {
+                        val cached = gemmaService.downloadModelIfNeeded() // instant return
+                        promise.resolve(cached)
+                        return@withContext
+                    }
+
+                    // 2. Start polling download progress
+                    val pollJob = kotlinx.coroutines.launch {
                         while (gemmaService.getDownloadProgress() != null) {
                             val progress = gemmaService.getDownloadProgress() ?: 0f
                             emitDownloadProgress(progress)
@@ -204,16 +204,22 @@ class GemmaModule(reactContext: ReactApplicationContext) :
                         }
                     }
 
-                    // Trigger the actual download (blocks until complete)
-                    val result = gemmaService.downloadModelIfNeeded()
+                    try {
+                        // 3. Trigger actual download (blocks until complete)
+                        val result = gemmaService.downloadModelIfNeeded()
 
-                    // Final progress = 1.0 or signal completion
-                    emitDownloadProgress(1.0f)
+                        // 4. Signal completion
+                        pollJob.cancel()
+                        emitDownloadProgress(1.0f)
 
-                    // Reload the model now that the file is cached
-                    gemmaService.loadModel(null)
+                        // 5. Reload model to switch from mock → real inference
+                        gemmaService.loadModel(null)
 
-                    promise.resolve(result)
+                        promise.resolve(result)
+                    } catch (e: Exception) {
+                        pollJob.cancel()
+                        throw e
+                    }
                 }
             } catch (e: Exception) {
                 promise.reject("GEMMA_DOWNLOAD_ERROR", e.message, e)
