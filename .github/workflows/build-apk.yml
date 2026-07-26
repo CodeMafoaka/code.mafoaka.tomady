@@ -44,7 +44,10 @@ jobs:
           ls -l app/src/main/res || true
           cat app/src/main/res/values/strings.xml || true
       - name: Build services APK
-        run: ./gradlew assembleServicesDebug -PserviceApiPort=7777 --no-daemon --stacktrace
+        run: ./gradlew assembleServicesDebug -PserviceApiPort=7777 --no-daemon --stacktrace 2>&1 | tee build-log.txt
+      - name: Print build errors on failure
+        if: failure()
+        run: tail -200 build-log.txt 2>/dev/null || true
       - name: Upload services APK
         uses: actions/upload-artifact@v4
         with:
@@ -87,7 +90,10 @@ jobs:
           ls -l app/src/main/res || true
           cat app/src/main/res/values/strings.xml || true
       - name: Build demo APK
-        run: ./gradlew assembleDemoDebug -PserviceApiPort=7777 --no-daemon --stacktrace
+        run: ./gradlew assembleDemoDebug -PserviceApiPort=7777 --no-daemon --stacktrace 2>&1 | tee build-log.txt
+      - name: Print build errors on failure
+        if: failure()
+        run: tail -200 build-log.txt 2>/dev/null || true
       - name: Upload demo APK
         uses: actions/upload-artifact@v4
         with:
@@ -130,7 +136,10 @@ jobs:
           ls -l app/src/main/res || true
           cat app/src/main/res/values/strings.xml || true
       - name: Build full APK
-        run: ./gradlew assembleFullDebug -PserviceApiPort=7777 --no-daemon --stacktrace
+        run: ./gradlew assembleFullDebug -PserviceApiPort=7777 --no-daemon --stacktrace 2>&1 | tee build-log.txt
+      - name: Print build errors on failure
+        if: failure()
+        run: tail -200 build-log.txt 2>/dev/null || true
       - name: Upload full APK
         uses: actions/upload-artifact@v4
         with:
