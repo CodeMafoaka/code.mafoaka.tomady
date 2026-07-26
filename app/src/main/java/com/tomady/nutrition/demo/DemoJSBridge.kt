@@ -2,6 +2,8 @@ package com.tomady.nutrition.demo
 
 import android.content.Context
 import android.webkit.JavascriptInterface
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
 import com.google.gson.Gson
 import com.tomady.nutrition.data.AppDatabase
 import com.tomady.nutrition.data.local.diet.DietDatabase
@@ -14,6 +16,7 @@ import com.tomady.nutrition.service.foodb.FooDBDataAPIService
 import com.tomady.nutrition.service.gemma.GemmaAndroidService
 import com.tomady.nutrition.service.gemma.GemmaAnswerResult
 import com.tomady.nutrition.service.gemma.GemmaRecipeResult
+import com.tomady.nutrition.worker.DailySuggestionWorker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -33,6 +36,7 @@ class DemoJSBridge(context: Context) {
 
     private val gson = Gson()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val workManager = WorkManager.getInstance(context.applicationContext)
 
     // ── Lazy service initialisation ────────────────────────────────────
 
@@ -341,6 +345,9 @@ class DemoJSBridge(context: Context) {
     @JavascriptInterface
     fun computeRecipe(prompt: String, userId: String): String = runIO {
         try {
+            if (!gemmaService.isModelLoaded()) {
+                gemmaService.loadModel(null)
+            }
             val result = gemmaService.computeRecipe(prompt, userId)
             gson.toJson(mapOf("ok" to true, "data" to result))
         } catch (e: Exception) {
@@ -351,8 +358,22 @@ class DemoJSBridge(context: Context) {
     @JavascriptInterface
     fun askQuestion(question: String, userId: String): String = runIO {
         try {
+            if (!gemmaService.isModelLoaded()) {
+                gemmaService.loadModel(null)
+            }
             val result = gemmaService.askQuestion(question, userId)
             gson.toJson(mapOf("ok" to true, "data" to result))
+        } catch (e: Exception) {
+            gson.toJson(mapOf("ok" to false, "error" to e.message))
+        }
+    }
+
+    @JavascriptInterface
+    fun triggerDailyWorker(): String {
+        return try {
+            val request = OneTimeWorkRequestBuilder<DailySuggestionWorker>().build()
+            workManager.enqueue(request)
+            gson.toJson(mapOf("ok" to true, "data" to "Daily suggestion worker queued via WorkManager"))
         } catch (e: Exception) {
             gson.toJson(mapOf("ok" to false, "error" to e.message))
         }

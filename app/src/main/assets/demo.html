@@ -171,10 +171,13 @@
   <div class="card">
     <h3>🚀 Force Run Daily Suggestion Worker</h3>
     <p style="font-size:13px;color:#888;margin-bottom:10px;">
-      Triggers the full suggestion pipeline: loads Gemma model, generates a personalised
-      dish suggestion using user profile context, logs it as a DishHistory entry.
+      Triggers the <strong>real</strong> DailySuggestionWorker via WorkManager.
+      It loads users, generates personalised dish suggestions, and logs them as DishHistory entries.
     </p>
-    <button class="btn btn-warning btn-sm" onclick="forceRunWorker()">Force Run Worker</button>
+    <div class="btn-row">
+      <button class="btn btn-warning btn-sm" onclick="triggerRealWorker()">Trigger Real Worker</button>
+      <button class="btn btn-secondary btn-sm" onclick="simulateWorker()">Simulate (manual)</button>
+    </div>
     <div id="worker-output" class="output">Worker result appears here...</div>
   </div>
 
@@ -185,6 +188,10 @@
       It loads users from DietDB, fetches their Profile + BioRecord + 7 days of DishHistory,
       builds a personalised prompt, calls GemmaAndroidService.computeRecipe(),
       logs the suggestion, and posts an event for the bridge layer.
+    </p>
+    <p style="font-size:12px;color:#888;line-height:1.6;margin-top:8px;">
+      <strong>Note:</strong> The worker has a daily guard (SharedPreferences) that prevents
+      running twice on the same day. If you want to re-test, restart the app or clear the guard.
     </p>
   </div>
 </div>
@@ -443,22 +450,34 @@ function askQuestion() {
 }
 
 // ── Worker ─────────────────────────────────────────────────────────────
-function forceRunWorker() {
+function triggerRealWorker() {
   const el = document.getElementById('worker-output');
-  el.innerHTML = '<span class="loading">Running worker pipeline...</span>';
+  el.innerHTML = '<span class="loading">Triggering real DailySuggestionWorker via WorkManager...</span>';
+  try {
+    const result = TomadyBridge.triggerDailyWorker();
+    const data = JSON.parse(result);
+    if (data.ok) {
+      el.innerHTML = '<span class="success">✅ Worker queued!</span>\n' +
+        data.data + '\n\n<span class="info">The worker will run in the background.</span>\n' +
+        'Check logcat for DailySuggestionWorker output.';
+    } else {
+      el.innerHTML = '<span class="error">❌ Failed to trigger worker:</span> ' + (data.error || 'Unknown error');
+    }
+  } catch(e) { handleError(el, e); }
+}
+
+function simulateWorker() {
+  const el = document.getElementById('worker-output');
+  el.innerHTML = '<span class="loading">Running manual simulation...</span>';
 
   try {
-    // Step 1: Load model
-    const loadResult = JSON.parse(TomadyBridge.loadModel());
-    if (!loadResult.ok) { el.innerHTML = '<span class="error">❌ Model load failed</span>'; return; }
-
-    // Step 2: Generate suggestion
+    // Step 1: Generate suggestion (model auto-loads now)
     const prompt = 'Generate a healthy meal suggestion for today. Suggest a balanced dish with good protein, fiber, and healthy fats.';
     const recipeResult = TomadyBridge.computeRecipe(prompt, USER_ID);
     const recipe = JSON.parse(recipeResult);
 
     if (recipe.ok && recipe.data) {
-      // Step 3: Log the meal as suggestion
+      // Step 2: Log the meal as suggestion
       const logParams = {
         userId: USER_ID,
         dishId: recipe.data.dishId,
@@ -469,10 +488,7 @@ function forceRunWorker() {
       };
       TomadyBridge.logMeal(JSON.stringify(logParams));
 
-      // Step 4: Release model
-      TomadyBridge.releaseModel();
-
-      let html = '<span class="success">✅ Worker completed!</span>\n';
+      let html = '<span class="success">✅ Simulation completed!</span>\n';
       html += 'Suggested dish: ' + recipe.data.dishName + '\n';
       html += 'Dish ID: ' + recipe.data.dishId + '\n';
       html += '\n🛡️ ' + (recipe.data.isCompatible ? '✅ Compatible with profile' : '⚠️ Warnings') + '\n';
@@ -481,8 +497,7 @@ function forceRunWorker() {
       }
       el.innerHTML = html;
     } else {
-      el.innerHTML = '<span class="error">❌ Recipe generation failed</span>';
-      TomadyBridge.releaseModel();
+      el.innerHTML = '<span class="error">❌ Recipe generation failed:</span> ' + (recipe.error || 'Unknown error');
     }
   } catch(e) { handleError(el, e); }
 }

@@ -2,6 +2,7 @@ package com.tomady.nutrition.worker
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.tomady.nutrition.data.AppDatabase
@@ -102,6 +103,7 @@ class DailySuggestionWorker(
             // 1. Load the Gemma model (simulated 2s load in dev)
             val modelLoaded = gemmaService.loadModel(null)
             if (!modelLoaded) {
+                Log.e(TAG, "Failed to load Gemma model")
                 return@withContext Result.failure()
             }
 
@@ -119,36 +121,47 @@ class DailySuggestionWorker(
             if (users.isEmpty()) {
                 // No users to generate suggestions for
                 gemmaService.release()
+                Log.w(TAG, "No users found — skipping suggestion generation")
                 return@withContext Result.success()
             }
 
             var suggestionCount = 0
+            var errorCount = 0
 
             // 3. For each user, generate a personalised suggestion
             for (user in users) {
-                val suggestion = generateUserSuggestion(
-                    userId = user.id,
-                    today = today
-                )
-                if (suggestion != null) {
-                    suggestionCount++
+                try {
+                    val suggestion = generateUserSuggestion(
+                        userId = user.id,
+                        today = today
+                    )
+                    if (suggestion != null) {
+                        suggestionCount++
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to generate suggestion for user ${user.id}: ${e.message}", e)
+                    errorCount++
                 }
             }
-
-            // 4. Persist the run date so we don't re-run today
-            prefs.edit().putString(KEY_LAST_RUN_DATE, today).apply()
 
             // 5. Release model resources
             gemmaService.release()
 
+            // 4. Persist the run date ONLY if at least one suggestion was generated
             if (suggestionCount > 0) {
-                Result.success()
+                prefs.edit().putString(KEY_LAST_RUN_DATE, today).apply()
+            }
+
+            Log.i(TAG, "Daily suggestion worker completed: $suggestionCount suggestions, $errorCount errors")
+
+            if (errorCount > 0 && suggestionCount == 0) {
+                // All users failed — return failure so WorkManager can retry
+                Result.failure()
             } else {
-                // No suggestions generated, but not a failure
                 Result.success()
             }
         } catch (e: Exception) {
-            // Log error in production
+            Log.e(TAG, "Daily suggestion worker failed with unrecoverable error: ${e.message}", e)
             Result.failure()
         }
     }
@@ -293,6 +306,8 @@ class DailySuggestionWorker(
     }
 
     companion object {
+        private const val TAG = "DailySuggestionWorker"
+
         /** SharedPreferences file name. */
         private const val PREFS_NAME = "daily_suggestion_worker"
 

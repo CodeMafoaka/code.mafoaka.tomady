@@ -73,6 +73,7 @@ class DietDatabase(
     suspend fun updateRecipe(recipe: Recipe) = recipeDao.update(recipe)
     suspend fun deleteRecipe(recipe: Recipe) = recipeDao.delete(recipe)
     suspend fun getRecipeById(id: String): Recipe? = recipeDao.getById(id)
+    suspend fun getRecipesByDishId(dishId: String): List<Recipe> = recipeDao.getByDishId(dishId)
 
     // ── RecipeIngredient CRUD ──────────────────────────────────────────
 

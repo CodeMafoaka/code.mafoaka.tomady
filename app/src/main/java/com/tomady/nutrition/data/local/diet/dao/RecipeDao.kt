@@ -30,6 +30,9 @@ interface RecipeDao {
     @Query("SELECT * FROM recipe WHERE id = :id")
     suspend fun getById(id: String): Recipe?
 
+    @Query("SELECT * FROM recipe WHERE dish_id = :dishId")
+    suspend fun getByDishId(dishId: String): List<Recipe>
+
     @Query("SELECT * FROM recipe WHERE id = :id")
     fun observeById(id: String): Flow<Recipe?>
 

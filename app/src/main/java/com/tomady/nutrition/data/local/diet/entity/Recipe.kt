@@ -2,12 +2,28 @@ package com.tomady.nutrition.data.local.diet.entity
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.ForeignKey
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
  * Room entity representing a full recipe with preparation instructions.
+ *
+ * Linked to a [Dish] via [dishId] so that nutrition computation can
+ * resolve ingredients without fragile name-based searches.
  */
-@Entity(tableName = "recipe")
+@Entity(
+    tableName = "recipe",
+    foreignKeys = [
+        ForeignKey(
+            entity = Dish::class,
+            parentColumns = ["id"],
+            childColumns = ["dish_id"],
+            onDelete = ForeignKey.SET_NULL
+        )
+    ],
+    indices = [Index("dish_id")]
+)
 data class Recipe(
     @PrimaryKey
     @ColumnInfo(name = "id")
@@ -15,6 +31,9 @@ data class Recipe(
 
     @ColumnInfo(name = "name")
     val name: String,
+
+    @ColumnInfo(name = "dish_id")
+    val dishId: String? = null,
 
     @ColumnInfo(name = "description")
     val description: String? = null,

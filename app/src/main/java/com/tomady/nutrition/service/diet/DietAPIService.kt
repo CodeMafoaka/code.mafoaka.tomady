@@ -224,6 +224,7 @@ class DietAPIService(
      */
     suspend fun createRecipe(
         name: String,
+        dishId: String? = null,
         description: String? = null,
         instructions: String? = null,
         prepTimeMinutes: Int? = null,
@@ -235,6 +236,7 @@ class DietAPIService(
         val recipe = Recipe(
             id = UUID.randomUUID().toString(),
             name = name,
+            dishId = dishId,
             description = description,
             instructions = instructions,
             prepTimeMinutes = prepTimeMinutes,
@@ -362,13 +364,8 @@ class DietAPIService(
         // 1. Resolve the dish
         val dish = dietDatabase.getDishById(dishId) ?: return@withContext null
 
-        // 2. Find recipes linked to this dish (via dish name heuristic or direct relation)
-        //    For MVP, we search recipes by name similarity to the dish.
-        //    A production version would add a dish_id column to Recipe.
-        val recipes = mutableListOf<Recipe>()
-        // Simple approach: if a recipe with a matching name exists
-        val matchingRecipes = dietDatabase.recipeDao.search(dish.name)
-        recipes.addAll(matchingRecipes)
+        // 2. Find recipes linked to this dish via dishId FK
+        val recipes = dietDatabase.getRecipesByDishId(dishId)
 
         // 3. Aggregate nutrients across all recipe ingredients
         var totalCalories = 0.0
