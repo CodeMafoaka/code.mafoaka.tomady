@@ -26,6 +26,7 @@ import androidx.core.content.ContextCompat
 class DemoActivity : AppCompatActivity() {
 
     companion object {
+        private const val TAG = "DemoActivity"
         /** Request code for the [Manifest.permission.POST_NOTIFICATIONS] permission. */
         private const val REQUEST_CODE_POST_NOTIFICATIONS = 1001
     }
@@ -140,9 +141,5 @@ class DemoActivity : AppCompatActivity() {
                 android.util.Log.w(TAG, "POST_NOTIFICATIONS permission denied")
             }
         }
-    }
-
-    private companion object {
-        private const val TAG = "DemoActivity"
     }
 }

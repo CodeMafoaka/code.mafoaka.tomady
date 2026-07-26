@@ -85,6 +85,10 @@ class GemmaModule(reactContext: ReactApplicationContext) :
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val gson = Gson()
 
+    @Suppress("UNCHECKED_CAST")
+    private fun <T> toMap(obj: T): Map<String, Any?> =
+        gson.fromJson(gson.toJson(obj), Map::class.java) as Map<String, Any?>
+
     private val gemmaService: GemmaAndroidService by lazy {
         val ctx = reactApplicationContext
         val db = AppDatabase.getInstance(ctx)
@@ -197,7 +201,7 @@ class GemmaModule(reactContext: ReactApplicationContext) :
                     }
 
                     // 2. Start polling download progress
-                    val pollJob = kotlinx.coroutines.launch {
+                    val pollJob = scope.launch {
                         while (gemmaService.getDownloadProgress() != null) {
                             val progress = gemmaService.getDownloadProgress() ?: 0f
                             emitDownloadProgress(progress)
@@ -270,9 +274,7 @@ class GemmaModule(reactContext: ReactApplicationContext) :
                 val result = withContext(Dispatchers.IO) {
                     gemmaService.computeRecipe(prompt, userId)
                 }
-                promise.resolve(mapToWritable(
-                    gson.fromJson(gson.toJson(result), Map::class.java)
-                ))
+                promise.resolve(mapToWritable(toMap(result)))
             } catch (e: Exception) {
                 promise.reject("GEMMA_RECIPE_ERROR", e.message, e)
             }
@@ -301,9 +303,7 @@ class GemmaModule(reactContext: ReactApplicationContext) :
                 val result = withContext(Dispatchers.IO) {
                     gemmaService.askQuestion(question, userId)
                 }
-                promise.resolve(mapToWritable(
-                    gson.fromJson(gson.toJson(result), Map::class.java)
-                ))
+                promise.resolve(mapToWritable(toMap(result)))
             } catch (e: Exception) {
                 promise.reject("GEMMA_ASK_ERROR", e.message, e)
             }
@@ -365,9 +365,7 @@ class GemmaModule(reactContext: ReactApplicationContext) :
                 val result = withContext(Dispatchers.IO) {
                     gemmaService.generateDailyInsight(userId, today, summary)
                 }
-                promise.resolve(mapToWritable(
-                    gson.fromJson(gson.toJson(result), Map::class.java)
-                ))
+                promise.resolve(mapToWritable(toMap(result)))
             } catch (e: Exception) {
                 promise.reject("GEMMA_INSIGHT_ERROR", e.message, e)
             }

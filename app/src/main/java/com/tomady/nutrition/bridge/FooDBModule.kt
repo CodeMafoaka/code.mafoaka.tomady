@@ -48,6 +48,10 @@ class FooDBModule(reactContext: ReactApplicationContext) :
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val gson = Gson()
 
+    @Suppress("UNCHECKED_CAST")
+    private fun <T> toMap(obj: T): Map<String, Any?> =
+        gson.fromJson(gson.toJson(obj), Map::class.java) as Map<String, Any?>
+
     private val foodbService: FooDBDataAPIService by lazy {
         val db = AppDatabase.getInstance(reactApplicationContext)
         val localDb = FooDBLocalDatabase(
@@ -105,9 +109,7 @@ class FooDBModule(reactContext: ReactApplicationContext) :
                 }
                 if (detail != null) {
                     val result = Arguments.createMap()
-                    result.putMap("food", mapToWritable(
-                        gson.fromJson(gson.toJson(detail.food), Map::class.java)
-                    ))
+                    result.putMap("food", mapToWritable(toMap(detail.food)))
                     val nutrientsArray = Arguments.createArray()
                     val listType = object : TypeToken<List<Map<String, Any?>>>() {}.type
                     val nutrientMaps: List<Map<String, Any?>> = gson.fromJson(

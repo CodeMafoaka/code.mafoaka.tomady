@@ -60,6 +60,14 @@ class DietModule(reactContext: ReactApplicationContext) :
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val gson = Gson()
 
+    @Suppress("UNCHECKED_CAST")
+    private fun <T> toMap(obj: T): Map<String, Any?> =
+        gson.fromJson(gson.toJson(obj), Map::class.java) as Map<String, Any?>
+
+    @Suppress("UNCHECKED_CAST")
+    private fun mapFromJson(json: String): Map<String, Any?> =
+        gson.fromJson(json, Map::class.java) as Map<String, Any?>
+
     private val dietService: DietAPIService by lazy {
         val db = AppDatabase.getInstance(reactApplicationContext)
         val localDb = FooDBLocalDatabase(
@@ -90,9 +98,7 @@ class DietModule(reactContext: ReactApplicationContext) :
                 val user = withContext(Dispatchers.IO) {
                     dietService.createUser(id, username, email)
                 }
-                promise.resolve(mapToWritable(
-                    gson.fromJson(gson.toJson(user), Map::class.java)
-                ))
+                promise.resolve(mapToWritable(toMap(user)))
             } catch (e: Exception) {
                 promise.reject("DIET_USER_CREATE_ERROR", e.message, e)
             }
@@ -107,9 +113,7 @@ class DietModule(reactContext: ReactApplicationContext) :
                     dietService.getUser(userId)
                 }
                 if (user != null) {
-                    promise.resolve(mapToWritable(
-                        gson.fromJson(gson.toJson(user), Map::class.java)
-                    ))
+                    promise.resolve(mapToWritable(toMap(user)))
                 } else {
                     promise.resolve(null)
                 }
@@ -127,9 +131,7 @@ class DietModule(reactContext: ReactApplicationContext) :
                     dietService.getUserByEmail(email)
                 }
                 if (user != null) {
-                    promise.resolve(mapToWritable(
-                        gson.fromJson(gson.toJson(user), Map::class.java)
-                    ))
+                    promise.resolve(mapToWritable(toMap(user)))
                 } else {
                     promise.resolve(null)
                 }
@@ -181,9 +183,7 @@ class DietModule(reactContext: ReactApplicationContext) :
                         forbiddenByDoctor = forbiddenByDoctor
                     )
                 }
-                promise.resolve(mapToWritable(
-                    gson.fromJson(gson.toJson(profile), Map::class.java)
-                ))
+                promise.resolve(mapToWritable(toMap(profile)))
             } catch (e: Exception) {
                 promise.reject("DIET_PROFILE_CREATE_ERROR", e.message, e)
             }
@@ -198,9 +198,7 @@ class DietModule(reactContext: ReactApplicationContext) :
                     dietService.getProfile(userId)
                 }
                 if (profile != null) {
-                    promise.resolve(mapToWritable(
-                        gson.fromJson(gson.toJson(profile), Map::class.java)
-                    ))
+                    promise.resolve(mapToWritable(toMap(profile)))
                 } else {
                     promise.resolve(null)
                 }
@@ -214,7 +212,7 @@ class DietModule(reactContext: ReactApplicationContext) :
     fun updateProfile(userId: String, json: String, promise: Promise) {
         scope.launch {
             try {
-                val params: Map<String, Any?> = gson.fromJson(json, Map::class.java)
+                val params = mapFromJson(json)
                 val existing = withContext(Dispatchers.IO) {
                     dietService.getProfile(userId)
                 }
@@ -235,9 +233,7 @@ class DietModule(reactContext: ReactApplicationContext) :
                         forbiddenByDoctor = params["forbiddenByDoctor"] as? String ?: existing.forbiddenByDoctor
                     )
                     withContext(Dispatchers.IO) { dietService.updateProfile(updated) }
-                    promise.resolve(mapToWritable(
-                        gson.fromJson(gson.toJson(updated), Map::class.java)
-                    ))
+                    promise.resolve(mapToWritable(toMap(updated)))
                 } else {
                     promise.reject("DIET_PROFILE_NOT_FOUND", "Profile not found for user: $userId")
                 }
@@ -275,9 +271,7 @@ class DietModule(reactContext: ReactApplicationContext) :
                         notes = notes
                     )
                 }
-                promise.resolve(mapToWritable(
-                    gson.fromJson(gson.toJson(record), Map::class.java)
-                ))
+                promise.resolve(mapToWritable(toMap(record)))
             } catch (e: Exception) {
                 promise.reject("DIET_BIO_RECORD_ERROR", e.message, e)
             }
@@ -292,9 +286,7 @@ class DietModule(reactContext: ReactApplicationContext) :
                     dietService.getBioRecord(userId, date)
                 }
                 if (record != null) {
-                    promise.resolve(mapToWritable(
-                        gson.fromJson(gson.toJson(record), Map::class.java)
-                    ))
+                    promise.resolve(mapToWritable(toMap(record)))
                 } else {
                     promise.resolve(null)
                 }
@@ -335,9 +327,7 @@ class DietModule(reactContext: ReactApplicationContext) :
                 val dish = withContext(Dispatchers.IO) {
                     dietService.createDish(name, description, category)
                 }
-                promise.resolve(mapToWritable(
-                    gson.fromJson(gson.toJson(dish), Map::class.java)
-                ))
+                promise.resolve(mapToWritable(toMap(dish)))
             } catch (e: Exception) {
                 promise.reject("DIET_DISH_CREATE_ERROR", e.message, e)
             }
@@ -390,9 +380,7 @@ class DietModule(reactContext: ReactApplicationContext) :
                         notes = notes
                     )
                 }
-                promise.resolve(mapToWritable(
-                    gson.fromJson(gson.toJson(history), Map::class.java)
-                ))
+                promise.resolve(mapToWritable(toMap(history)))
             } catch (e: Exception) {
                 promise.reject("DIET_MEAL_LOG_ERROR", e.message, e)
             }
@@ -451,9 +439,7 @@ class DietModule(reactContext: ReactApplicationContext) :
                     dietService.computeDishNutrition(dishId)
                 }
                 if (nutrition != null) {
-                    promise.resolve(mapToWritable(
-                        gson.fromJson(gson.toJson(nutrition), Map::class.java)
-                    ))
+                    promise.resolve(mapToWritable(toMap(nutrition)))
                 } else {
                     promise.resolve(null)
                 }
@@ -474,9 +460,7 @@ class DietModule(reactContext: ReactApplicationContext) :
                     val validation = withContext(Dispatchers.IO) {
                         dietService.validateDishForProfile(dishId, profile)
                     }
-                    promise.resolve(mapToWritable(
-                        gson.fromJson(gson.toJson(validation), Map::class.java)
-                    ))
+                    promise.resolve(mapToWritable(toMap(validation)))
                 } else {
                     promise.reject("DIET_PROFILE_NOT_FOUND", "Profile not found for user: $userId")
                 }
@@ -498,9 +482,7 @@ class DietModule(reactContext: ReactApplicationContext) :
                         dietService.computeDailyTargets(profile, null)
                     }
                     if (targets != null) {
-                        promise.resolve(mapToWritable(
-                            gson.fromJson(gson.toJson(targets), Map::class.java)
-                        ))
+                        promise.resolve(mapToWritable(toMap(targets)))
                     } else {
                         promise.resolve(null)
                     }
@@ -521,9 +503,7 @@ class DietModule(reactContext: ReactApplicationContext) :
                     dietService.getDailySummary(userId, date)
                 }
                 if (summary != null) {
-                    promise.resolve(mapToWritable(
-                        gson.fromJson(gson.toJson(summary), Map::class.java)
-                    ))
+                    promise.resolve(mapToWritable(toMap(summary)))
                 } else {
                     promise.resolve(null)
                 }
