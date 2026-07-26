@@ -2,8 +2,6 @@ package com.tomady.nutrition.demo
 
 import android.content.Context
 import android.webkit.JavascriptInterface
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkManager
 import com.google.gson.Gson
 import com.tomady.nutrition.data.AppDatabase
 import com.tomady.nutrition.data.local.diet.DietDatabase
@@ -16,7 +14,6 @@ import com.tomady.nutrition.service.foodb.FooDBDataAPIService
 import com.tomady.nutrition.service.gemma.GemmaAndroidService
 import com.tomady.nutrition.service.gemma.GemmaAnswerResult
 import com.tomady.nutrition.service.gemma.GemmaRecipeResult
-import com.tomady.nutrition.worker.DailySuggestionWorker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -36,7 +33,6 @@ class DemoJSBridge(context: Context) {
 
     private val gson = Gson()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    private val workManager = WorkManager.getInstance(context.applicationContext)
 
     // ── Lazy service initialisation ────────────────────────────────────
 
@@ -75,7 +71,6 @@ class DemoJSBridge(context: Context) {
             dishHistoryDao = db.dishHistoryDao()
         )
         GemmaAndroidService(
-            context = context.applicationContext,
             dietDatabase = dietDb,
             dietService = dietService,
             foodbService = foodbService
@@ -185,16 +180,9 @@ class DemoJSBridge(context: Context) {
                 val updated = existing.copy(
                     goal = params["goal"] as? String ?: existing.goal,
                     displayName = params["displayName"] as? String ?: existing.displayName,
-                    age = (params["age"] as? Number)?.toInt() ?: existing.age,
                     heightCm = (params["heightCm"] as? Number)?.toDouble() ?: existing.heightCm,
                     weightKg = (params["weightKg"] as? Number)?.toDouble() ?: existing.weightKg,
-                    dailyCalorieTarget = (params["dailyCalorieTarget"] as? Number)?.toInt() ?: existing.dailyCalorieTarget,
-                    activityLevel = params["activityLevel"] as? String ?: existing.activityLevel,
-                    allergies = params["allergies"] as? String ?: existing.allergies,
-                    intolerances = params["intolerances"] as? String ?: existing.intolerances,
-                    conditions = params["conditions"] as? String ?: existing.conditions,
-                    restrictedFoods = params["restrictedFoods"] as? String ?: existing.restrictedFoods,
-                    forbiddenByDoctor = params["forbiddenByDoctor"] as? String ?: existing.forbiddenByDoctor
+                    dailyCalorieTarget = (params["dailyCalorieTarget"] as? Number)?.toInt() ?: existing.dailyCalorieTarget
                 )
                 dietService.updateProfile(updated)
                 gson.toJson(mapOf("ok" to true, "data" to updated))
@@ -203,16 +191,9 @@ class DemoJSBridge(context: Context) {
                     userId = userId,
                     goal = params["goal"] as? String,
                     displayName = params["displayName"] as? String,
-                    age = (params["age"] as? Number)?.toInt(),
                     heightCm = (params["heightCm"] as? Number)?.toDouble(),
                     weightKg = (params["weightKg"] as? Number)?.toDouble(),
-                    dailyCalorieTarget = (params["dailyCalorieTarget"] as? Number)?.toInt(),
-                    activityLevel = params["activityLevel"] as? String,
-                    allergies = params["allergies"] as? String,
-                    intolerances = params["intolerances"] as? String,
-                    conditions = params["conditions"] as? String,
-                    restrictedFoods = params["restrictedFoods"] as? String,
-                    forbiddenByDoctor = params["forbiddenByDoctor"] as? String
+                    dailyCalorieTarget = (params["dailyCalorieTarget"] as? Number)?.toInt()
                 )
                 gson.toJson(mapOf("ok" to true, "data" to created))
             }
@@ -360,9 +341,6 @@ class DemoJSBridge(context: Context) {
     @JavascriptInterface
     fun computeRecipe(prompt: String, userId: String): String = runIO {
         try {
-            if (!gemmaService.isModelLoaded()) {
-                gemmaService.loadModel(null)
-            }
             val result = gemmaService.computeRecipe(prompt, userId)
             gson.toJson(mapOf("ok" to true, "data" to result))
         } catch (e: Exception) {
@@ -373,22 +351,8 @@ class DemoJSBridge(context: Context) {
     @JavascriptInterface
     fun askQuestion(question: String, userId: String): String = runIO {
         try {
-            if (!gemmaService.isModelLoaded()) {
-                gemmaService.loadModel(null)
-            }
             val result = gemmaService.askQuestion(question, userId)
             gson.toJson(mapOf("ok" to true, "data" to result))
-        } catch (e: Exception) {
-            gson.toJson(mapOf("ok" to false, "error" to e.message))
-        }
-    }
-
-    @JavascriptInterface
-    fun triggerDailyWorker(): String {
-        return try {
-            val request = OneTimeWorkRequestBuilder<DailySuggestionWorker>().build()
-            workManager.enqueue(request)
-            gson.toJson(mapOf("ok" to true, "data" to "Daily suggestion worker queued via WorkManager"))
         } catch (e: Exception) {
             gson.toJson(mapOf("ok" to false, "error" to e.message))
         }

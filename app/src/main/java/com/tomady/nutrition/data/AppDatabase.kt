@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
-import androidx.sqlite.db.SupportSQLiteDatabase
 import com.tomady.nutrition.data.local.diet.dao.BioRecordDao
 import com.tomady.nutrition.data.local.diet.dao.DishDao
 import com.tomady.nutrition.data.local.diet.dao.DishHistoryDao
@@ -45,7 +44,7 @@ import com.tomady.nutrition.data.local.foodb.entity.NutrientProperty
         FoodItem::class,
         NutrientProperty::class
     ],
-    version = 4,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -82,26 +81,12 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         private fun buildDatabase(context: Context): AppDatabase {
-            val seedCallback = SeedDataCallback()
-
             return Room.databaseBuilder(
                 context.applicationContext,
                 AppDatabase::class.java,
                 DATABASE_NAME
             )
                 .fallbackToDestructiveMigration()
-                .addCallback(object : RoomDatabase.Callback() {
-                    override fun onCreate(db: SupportSQLiteDatabase) {
-                        super.onCreate(db)
-                        // Seed data will be inserted after the database instance is fully created
-                        // We use a coroutine launched on the IO dispatcher because DAO methods are suspend.
-                        // AppDatabase.getInstance() is safe here because onCreate runs before any query.
-                        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-                            val instance = getInstance(context)
-                            seedCallback.seedDatabase(instance)
-                        }
-                    }
-                })
                 .build()
         }
     }
