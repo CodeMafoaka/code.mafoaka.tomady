@@ -15,6 +15,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Compute version metadata
+        id: meta
+        run: |
+          SHORT_SHA=$(git rev-parse --short=4 HEAD)
+          VERSION=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
+          echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
       - name: Set up JDK ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v4
         with:
@@ -26,6 +33,16 @@ jobs:
         run: yes | sdkmanager --licenses 2>&1 || true
       - name: Build services APK
         run: ./gradlew assembleServicesDebug -PserviceApiPort=7777 --no-daemon --stacktrace
+      - name: Rename APK
+        run: |
+          APK_PATH=$(find app/build/outputs/apk -name "*.apk" | head -1)
+          if [ -n "$APK_PATH" ]; then
+            NEW_NAME="tomady-V${{ steps.meta.outputs.version }}-${{ steps.meta.outputs.short_sha }}.apk"
+            mv "$APK_PATH" "$(dirname "$APK_PATH")/$NEW_NAME"
+            echo "Renamed to $NEW_NAME"
+          else
+            echo "No APK found to rename"
+          fi
       - name: Diagnostic
         if: always()
         run: |
@@ -55,7 +72,7 @@ jobs:
       - name: Upload services APK
         uses: actions/upload-artifact@v4
         with:
-          name: tomady-services-debug
+          name: tomady-services-${{ steps.meta.outputs.short_sha }}
           path: app/build/outputs/apk/**/*.apk
           compression-level: 0
           if-no-files-found: warn
@@ -65,6 +82,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Compute version metadata
+        id: meta
+        run: |
+          SHORT_SHA=$(git rev-parse --short=4 HEAD)
+          VERSION=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
+          echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
       - name: Set up JDK ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v4
         with:
@@ -76,6 +100,16 @@ jobs:
         run: yes | sdkmanager --licenses 2>&1 || true
       - name: Build full (UI) APK
         run: ./gradlew assembleFullDebug -PserviceApiPort=7777 --no-daemon --stacktrace
+      - name: Rename APK
+        run: |
+          APK_PATH=$(find app/build/outputs/apk -name "*.apk" | head -1)
+          if [ -n "$APK_PATH" ]; then
+            NEW_NAME="tomady-V${{ steps.meta.outputs.version }}-${{ steps.meta.outputs.short_sha }}.apk"
+            mv "$APK_PATH" "$(dirname "$APK_PATH")/$NEW_NAME"
+            echo "Renamed to $NEW_NAME"
+          else
+            echo "No APK found to rename"
+          fi
       - name: Diagnostic
         if: always()
         run: |
@@ -105,7 +139,7 @@ jobs:
       - name: Upload full (UI) APK
         uses: actions/upload-artifact@v4
         with:
-          name: tomady-full-debug
+          name: tomady-full-${{ steps.meta.outputs.short_sha }}
           path: app/build/outputs/apk/**/*.apk
           compression-level: 0
           if-no-files-found: warn
