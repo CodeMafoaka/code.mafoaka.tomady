@@ -15,6 +15,7 @@ android {
         versionCode = 1
         versionName = "0.1.0"
         buildConfigField("int", "SERVICE_API_PORT", project.findProperty("serviceApiPort")?.toString() ?: "7777")
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     flavorDimensions += "distribution"
@@ -105,4 +106,13 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.activity:activity-compose:1.8.2")
     implementation("androidx.navigation:navigation-compose:2.7.7")
+
+    // Instrumented UI smoke test — runs on-device/emulator (see SmokeTest.kt),
+    // catches crashes a JVM unit test can't (real Room/SQLite + Compose runtime).
+    androidTestImplementation(platform("androidx.compose:compose-bom:2024.02.00"))
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
+    androidTestImplementation("androidx.test.ext:junit:1.1.5")
+    androidTestImplementation("androidx.test:runner:1.5.2")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
 }
