@@ -433,7 +433,11 @@ class TomadyRestApiServer(
                 name = name,
                 description = json.get("description")?.asString,
                 category = json.get("category")?.asString,
-                imageUrl = json.get("imageUrl")?.asString
+                imageUrl = json.get("imageUrl")?.asString,
+                calories = json.get("calories")?.asInt,
+                proteinGrams = json.get("proteinGrams")?.asDouble,
+                carbsGrams = json.get("carbsGrams")?.asDouble,
+                fatGrams = json.get("fatGrams")?.asDouble
             )
         }
         return jsonOk(mapOf("dish" to dish))

@@ -206,14 +206,22 @@ class DietAPIService(
         name: String,
         description: String? = null,
         category: String? = null,
-        imageUrl: String? = null
+        imageUrl: String? = null,
+        calories: Int? = null,
+        proteinGrams: Double? = null,
+        carbsGrams: Double? = null,
+        fatGrams: Double? = null
     ): Dish = withContext(Dispatchers.IO) {
         val dish = Dish(
             id = UUID.randomUUID().toString(),
             name = name,
             description = description,
             category = category,
-            imageUrl = imageUrl
+            imageUrl = imageUrl,
+            calories = calories,
+            proteinGrams = proteinGrams,
+            carbsGrams = carbsGrams,
+            fatGrams = fatGrams
         )
         dietDatabase.insertDish(dish)
         dish
