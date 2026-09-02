@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Used only by the native Compose UI (ui.MainActivity) — Compose renders
+         its own TopBar, so the system action bar is disabled here. Based on
+         AppCompat (already a dependency) rather than Material3's XML theme,
+         which would need the separate com.google.android.material library. -->
+    <style name="Theme.Tomady" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:windowBackground">@android:color/white</item>
+    </style>
+</resources>

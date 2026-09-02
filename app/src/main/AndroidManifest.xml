@@ -23,16 +23,24 @@
         android:supportsRtl="true"
         android:usesCleartextTraffic="true">
 
-        <!-- Demo WebView Activity -->
+        <!-- Native Compose UI — the app's main entry point -->
         <activity
-            android:name=".demo.DemoActivity"
+            android:name=".ui.MainActivity"
             android:exported="true"
-            android:label="Tomady Demo">
+            android:theme="@style/Theme.Tomady"
+            android:label="@string/app_name">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Demo WebView Activity — kept for the original webview-based demo flow;
+             launch explicitly (adb/app switcher), no longer the default launcher. -->
+        <activity
+            android:name=".demo.DemoActivity"
+            android:exported="true"
+            android:label="Tomady Demo" />
 
         <!-- Persistent notification service for the HTTP server -->
         <service
