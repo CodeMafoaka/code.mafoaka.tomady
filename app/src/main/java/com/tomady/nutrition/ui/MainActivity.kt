@@ -3,12 +3,19 @@ package com.tomady.nutrition.ui
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -51,6 +58,26 @@ private const val ROUTE_FOOD_DETAIL = "foodDetail/{foodId}"
 
 @Composable
 fun TomadyApp() {
+    val app = rememberTomadyApp()
+    var bootstrapped by remember { mutableStateOf(false) }
+
+    // Profile/DishHistory both have a hard ForeignKey onto User — create the
+    // User row (and default Profile) once here, before any screen mounts, so
+    // no screen can race ahead and try to write against a User row that
+    // doesn't exist yet (that throws an uncaught SQLiteConstraintException
+    // that crashes the whole app).
+    LaunchedEffect(Unit) {
+        ensureDefaultProfile(app)
+        bootstrapped = true
+    }
+
+    if (!bootstrapped) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = TomadyColors.green)
+        }
+        return
+    }
+
     val navController: NavHostController = rememberNavController()
 
     Scaffold(

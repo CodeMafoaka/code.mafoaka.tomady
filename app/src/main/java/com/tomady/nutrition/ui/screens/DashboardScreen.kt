@@ -27,6 +27,7 @@ import com.tomady.nutrition.ui.CURRENT_USER_ID
 import com.tomady.nutrition.ui.components.MacroProgressRow
 import com.tomady.nutrition.ui.components.SectionCard
 import com.tomady.nutrition.ui.components.TomadyTopBar
+import com.tomady.nutrition.ui.ensureDefaultProfile
 import com.tomady.nutrition.ui.rememberTomadyApp
 import com.tomady.nutrition.ui.theme.TomadyColors
 import java.time.LocalDate
@@ -42,18 +43,7 @@ fun DashboardScreen() {
     val today = remember { LocalDate.now().toString() }
 
     LaunchedEffect(Unit) {
-        // First launch — create a sensible default profile so the dashboard is
-        // usable immediately without a dedicated onboarding flow yet.
-        val resolvedProfile = app.dietService.getProfile(CURRENT_USER_ID)
-            ?: app.dietService.createProfile(
-                userId = CURRENT_USER_ID,
-                displayName = "Utilisateur",
-                goal = "Maintien",
-                dailyCalorieTarget = 2000,
-                proteinGramsTarget = 120,
-                carbsGramsTarget = 220,
-                fatGramsTarget = 65
-            )
+        val resolvedProfile = ensureDefaultProfile(app)
         profile = resolvedProfile
 
         val latestBio = app.dietService.getBioRecord(CURRENT_USER_ID, today)

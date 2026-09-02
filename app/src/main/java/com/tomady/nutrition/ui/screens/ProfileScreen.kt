@@ -24,9 +24,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.tomady.nutrition.data.local.diet.entity.Profile
-import com.tomady.nutrition.ui.CURRENT_USER_ID
 import com.tomady.nutrition.ui.components.SectionCard
 import com.tomady.nutrition.ui.components.TomadyTopBar
+import com.tomady.nutrition.ui.ensureDefaultProfile
 import com.tomady.nutrition.ui.rememberTomadyApp
 import com.tomady.nutrition.ui.theme.TomadyColors
 import kotlinx.coroutines.launch
@@ -47,8 +47,7 @@ fun ProfileScreen() {
     var weightKg by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
-        val resolved = app.dietService.getProfile(CURRENT_USER_ID)
-            ?: app.dietService.createProfile(userId = CURRENT_USER_ID, displayName = "Utilisateur")
+        val resolved = ensureDefaultProfile(app)
         profile = resolved
         displayName = resolved.displayName ?: ""
         goal = resolved.goal ?: ""
