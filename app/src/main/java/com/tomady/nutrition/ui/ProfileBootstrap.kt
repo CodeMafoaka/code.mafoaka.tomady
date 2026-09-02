@@ -1,5 +1,6 @@
 package com.tomady.nutrition.ui
 
+import com.tomady.nutrition.TomadyApp
 import com.tomady.nutrition.data.local.diet.entity.Profile
 
 /**
