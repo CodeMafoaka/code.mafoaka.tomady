@@ -2,6 +2,8 @@ package com.tomady.nutrition.service.gemma
 
 import android.content.Context
 import android.util.Log
+import com.google.gson.JsonObject
+import com.tomady.nutrition.config.ConfigManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -10,10 +12,16 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * Utility for downloading and caching the Gemma 4 GGUF model file on-device.
+ * Utility for downloading and caching the on-device Gemma `.task` model file.
  *
- * Gemma 4 quantized GGUF models are ~2 GB — too large to bundle in the APK.
- * This class downloads the model at first launch and caches it in the app's
+ * MediaPipe LLM Inference (`com.google.mediapipe.tasks.genai.llminference.LlmInference`)
+ * loads a `.task` bundle, NOT a llama.cpp GGUF file — model file name and download
+ * URLs are sourced from [ConfigManager] ([com.tomady.nutrition.config.GemmaConfig])
+ * so they can be corrected/overridden without a code change, e.g. via
+ * `POST /api/v1/config`.
+ *
+ * Quantized `.task` models are ~500MB-1GB — too large to bundle in the APK.
+ * This class downloads the model at first use and caches it in the app's
  * internal storage (`context.filesDir/models/`).
  *
  * ## Usage
@@ -24,55 +32,70 @@ import java.net.URL
  * ```
  *
  * ## Authentication
- * The default download URL uses the **Kaggle API**, which requires **Kaggle credentials**
- * (username + API key). Set them via [setKaggleCredentials] before downloading.
+ * The default download URL is a Hugging Face mirror; the Gemma license is
+ * gated there, so a Hugging Face access token is required (set via config's
+ * `gemma.huggingfaceToken`). Setting Kaggle credentials instead switches the
+ * effective URL to the Kaggle API mirror.
  *
  * To get your Kaggle API key:
  * 1. Go to https://www.kaggle.com/settings
  * 2. Scroll to "API" section
  * 3. Click "Create New Token" — downloads kaggle.json containing username + key
  *
- * If no credentials are set, the service falls back to a **HuggingFace mirror**
- * which doesn't require authentication but may have slower download speeds.
- *
  * ## Model File Verification
  * The downloaded file is verified by checking its size (must be > 1 MB).
- * Real Gemma 4 4-bit GGUF files are approximately 2 GB.
  */
-class ModelDownloader(private val context: Context) {
+class ModelDownloader(
+    private val context: Context,
+    private val configManager: ConfigManager = ConfigManager(context)
+) {
 
     /** Directory where model files are cached. */
     private val modelDir: File
         get() = File(context.filesDir, MODEL_DIR_NAME).also { it.mkdirs() }
 
+    private fun modelFileName(): String = configManager.get().gemma.modelFileName
+
     /**
      * Sets Kaggle API credentials for authenticated model download.
      *
-     * Required when using the default Kaggle download URL.
-     * Without credentials, the download will fall back to the HuggingFace mirror.
+     * Required when using the Kaggle download URL. Without credentials, the
+     * effective download falls back to the configured Hugging Face mirror.
      *
      * @param username Your Kaggle username.
      * @param apiKey   Your Kaggle API key (from kaggle.json).
      */
     fun setKaggleCredentials(username: String, apiKey: String) {
-        this.kaggleUsername = username
-        this.kaggleApiKey = apiKey
+        val partial = JsonObject().apply {
+            add("gemma", JsonObject().apply {
+                addProperty("kaggleUsername", username)
+                addProperty("kaggleApiKey", apiKey)
+            })
+        }
+        configManager.update(partial)
     }
 
     /**
      * Returns whether Kaggle credentials have been configured.
      */
-    fun hasKaggleCredentials(): Boolean = kaggleUsername != null && kaggleApiKey != null
+    fun hasKaggleCredentials(): Boolean {
+        val gemma = configManager.get().gemma
+        return !gemma.kaggleUsername.isNullOrBlank() && !gemma.kaggleApiKey.isNullOrBlank()
+    }
+
+    private fun hasHuggingFaceToken(): Boolean =
+        !configManager.get().gemma.huggingfaceToken.isNullOrBlank()
 
     /**
-     * The primary download URL. Uses Kaggle API if credentials are available,
-     * otherwise uses the HuggingFace mirror.
+     * The primary download URL. Uses the Kaggle API if credentials are available,
+     * otherwise uses the configured Hugging Face mirror.
      */
     fun getEffectiveDownloadUrl(): String {
+        val gemma = configManager.get().gemma
         return if (hasKaggleCredentials()) {
-            KAGGLE_DOWNLOAD_URL
+            gemma.kaggleModelDownloadUrl
         } else {
-            HF_MIRROR_DOWNLOAD_URL
+            gemma.modelDownloadUrl
         }
     }
 
@@ -83,7 +106,7 @@ class ModelDownloader(private val context: Context) {
      * @return Absolute path to the model file, or null if download fails.
      */
     suspend fun ensureModelDownloaded(forceReDownload: Boolean = false): String? = withContext(Dispatchers.IO) {
-        val modelFile = File(modelDir, MODEL_FILE_NAME)
+        val modelFile = File(modelDir, modelFileName())
 
         // Check if model already exists
         if (modelFile.exists() && !forceReDownload) {
@@ -103,20 +126,21 @@ class ModelDownloader(private val context: Context) {
     /**
      * Downloads the Gemma model from a remote URL.
      *
-     * @param urlStr URL of the GGUF model file to download.
+     * @param urlStr URL of the `.task` model file to download; defaults to the
+     * effective configured URL (Kaggle if credentials are set, else Hugging Face).
      * @return Absolute path to the downloaded file, or null on failure.
      */
-    suspend fun downloadFromUrl(urlStr: String = MODEL_DOWNLOAD_URL): String? = withContext(Dispatchers.IO) {
-        val modelFile = File(modelDir, MODEL_FILE_NAME)
+    suspend fun downloadFromUrl(urlStr: String? = null): String? = withContext(Dispatchers.IO) {
+        val modelFile = File(modelDir, modelFileName())
         if (modelFile.exists()) modelFile.delete()
-        downloadModel(modelFile, urlStr)
+        downloadModel(modelFile, urlStr ?: getEffectiveDownloadUrl())
     }
 
     /**
      * Returns the cached model file path, or null if not yet downloaded.
      */
     fun getCachedModelPath(): String? {
-        val modelFile = File(modelDir, MODEL_FILE_NAME)
+        val modelFile = File(modelDir, modelFileName())
         return if (modelFile.exists() && modelFile.length() > MIN_VALID_FILE_SIZE) {
             modelFile.absolutePath
         } else null
@@ -133,7 +157,7 @@ class ModelDownloader(private val context: Context) {
      * Deletes the cached model file to free up storage space.
      */
     fun deleteCachedModel() {
-        val modelFile = File(modelDir, MODEL_FILE_NAME)
+        val modelFile = File(modelDir, modelFileName())
         if (modelFile.exists()) {
             modelFile.delete()
             Log.i(TAG, "Deleted cached model file")
@@ -144,14 +168,9 @@ class ModelDownloader(private val context: Context) {
      * Returns the size of the cached model file in bytes, or 0 if not cached.
      */
     fun getCachedModelSizeBytes(): Long {
-        val modelFile = File(modelDir, MODEL_FILE_NAME)
+        val modelFile = File(modelDir, modelFileName())
         return if (modelFile.exists()) modelFile.length() else 0L
     }
-
-    // ── Internal state ────────────────────────────────────────────────
-
-    private var kaggleUsername: String? = null
-    private var kaggleApiKey: String? = null
 
     // ── Private helpers ────────────────────────────────────────────────
 
@@ -184,23 +203,28 @@ class ModelDownloader(private val context: Context) {
             connection.readTimeout = READ_TIMEOUT_MS
             connection.setRequestProperty("Accept", "application/octet-stream")
 
-            // Add Kaggle authentication if available
+            // Add authentication if available — Kaggle basic auth or HF bearer token
+            val gemmaConfig = configManager.get().gemma
             if (hasKaggleCredentials() && effectiveUrl.contains("kaggle.com")) {
-                val combined = "$kaggleUsername:$kaggleApiKey"
+                val combined = "${gemmaConfig.kaggleUsername}:${gemmaConfig.kaggleApiKey}"
                 val basicAuth = "Basic " + android.util.Base64.encodeToString(
                     combined.toByteArray(), android.util.Base64.NO_WRAP
                 )
                 connection.setRequestProperty("Authorization", basicAuth)
+            } else if (hasHuggingFaceToken() && effectiveUrl.contains("huggingface.co")) {
+                connection.setRequestProperty("Authorization", "Bearer ${gemmaConfig.huggingfaceToken}")
             }
 
             connection.connect()
 
             val responseCode = connection.responseCode
             if (responseCode != HttpURLConnection.HTTP_OK) {
-                val errorMsg = if (responseCode == HttpURLConnection.HTTP_UNAUTHORIZED) {
-                    "Kaggle API requires authentication (HTTP 401). Call setKaggleCredentials(username, apiKey) before downloading, or use the HuggingFace mirror."
-                } else {
-                    "Download failed with HTTP $responseCode"
+                val errorMsg = when (responseCode) {
+                    HttpURLConnection.HTTP_UNAUTHORIZED, HttpURLConnection.HTTP_FORBIDDEN ->
+                        "Authentication required or rejected (HTTP $responseCode) for $effectiveUrl. " +
+                            "Set gemma.kaggleUsername/kaggleApiKey or gemma.huggingfaceToken via POST /api/v1/config " +
+                            "(the Hugging Face Gemma repo is gated — the token's account must have accepted the license)."
+                    else -> "Download failed with HTTP $responseCode"
                 }
                 Log.e(TAG, errorMsg)
                 downloadProgress = null
@@ -255,32 +279,7 @@ class ModelDownloader(private val context: Context) {
         /** Directory name inside filesDir where models are cached. */
         internal const val MODEL_DIR_NAME = "models"
 
-        /** Name of the Gemma 4 GGUF model file. */
-        internal const val MODEL_FILE_NAME = "gemma-4-2b-it-qat-int4.gguf"
-
-        /**
-         * Kaggle API download URL for the MediaPipe-ready Gemma 4 GGUF model.
-         * Requires Kaggle credentials (username + API key) via [setKaggleCredentials].
-         */
-        internal const val KAGGLE_DOWNLOAD_URL =
-            "https://www.kaggle.com/api/v1/models/google/gemma-4/tfLite/gemma-4-2b-it-qat-int4/1/download"
-
-        /**
-         * HuggingFace mirror URL for Gemma 4 — no authentication required.
-         * May be slower but works out of the box.
-         */
-        internal const val HF_MIRROR_DOWNLOAD_URL =
-            "https://huggingface.co/google/gemma-4-2b-it-gguf/resolve/main/gemma-4-2b-it-qat-int4.gguf"
-
-        /**
-         * Default download URL used when determining which source to use.
-         * This is dynamically selected based on whether Kaggle credentials are set.
-         * For raw downloadFromUrl() calls, this defaults to HuggingFace mirror.
-         */
-        internal val MODEL_DOWNLOAD_URL: String
-            get() = HF_MIRROR_DOWNLOAD_URL
-
-        /** Minimum valid file size (1 MB) — real model is ~2 GB. */
+        /** Minimum valid file size (1 MB) — real quantized `.task` models are several hundred MB+. */
         private const val MIN_VALID_FILE_SIZE = 1_000_000L
 
         /** Connection timeout in milliseconds. */

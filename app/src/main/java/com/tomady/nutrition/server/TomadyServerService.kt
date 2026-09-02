@@ -44,7 +44,8 @@ class TomadyServerService : Service() {
         }
 
         val ip = TomadyRestApiServer.getLocalIpAddress()
-        val url = "http://$ip:${TomadyRestApiServer.DEFAULT_PORT}"
+        val boundPort = if (isInitialized) app.apiServer.listeningPort else TomadyRestApiServer.DEFAULT_PORT
+        val url = "http://$ip:$boundPort"
 
         val openIntent = Intent(this, DemoActivity::class.java)
         openIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
@@ -55,7 +56,7 @@ class TomadyServerService : Service() {
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Tomady Server Active")
-            .setContentText("REST API running on port ${TomadyRestApiServer.DEFAULT_PORT}")
+            .setContentText("REST API running on port $boundPort")
             .setSubText(url)
             .setSmallIcon(android.R.drawable.ic_menu_compass)
             .setContentIntent(pendingIntent)

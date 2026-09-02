@@ -316,6 +316,111 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/gemma/download:
+    post:
+      summary: Trigger downloading the real Gemma .task model and load it, replacing the mock fallback
+      description: >
+        Runs in the background — poll /api/v1/gemma/download/status for progress.
+        Note this endpoint (and /api/v1/config below) is served under the /api/v1
+        prefix actually used by TomadyRestApiServer, unlike the /v1/... paths
+        documented elsewhere in this file, which predate the server implementation
+        and are out of sync with it.
+      tags:
+        - Gemma
+      responses:
+        '200':
+          description: Download/load status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [already_loaded, already_in_progress, cached_loading, started]
+                  modelCached:
+                    type: boolean
+                  progress:
+                    type: number
+                    format: float
+                    nullable: true
+                  modelVersion:
+                    type: string
+                    nullable: true
+  /api/v1/gemma/download/status:
+    get:
+      summary: Poll Gemma model download/load progress
+      tags:
+        - Gemma
+      responses:
+        '200':
+          description: Current download/model state
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cached:
+                    type: boolean
+                  downloading:
+                    type: boolean
+                  progress:
+                    type: number
+                    format: float
+                    nullable: true
+                  loaded:
+                    type: boolean
+                  usingMock:
+                    type: boolean
+                  modelVersion:
+                    type: string
+                    nullable: true
+  /api/v1/config:
+    get:
+      summary: Read the current backend config (secrets redacted)
+      tags:
+        - Config
+      responses:
+        '200':
+          description: Current config
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TomadyConfig'
+    post:
+      summary: Merge-update the backend config
+      description: >
+        Body is either a partial TomadyConfig document (only the provided fields
+        are overwritten, recursively) or {"configPath": "/on-device/path.json"}
+        to load it from a JSON file already present on the device. Gemma/model
+        changes apply on the next /api/v1/gemma/load or /api/v1/gemma/download
+        call; server.port changes require an app restart.
+      tags:
+        - Config
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfigUpdateRequest'
+      responses:
+        '200':
+          description: Updated config (secrets redacted)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  config:
+                    $ref: '#/components/schemas/TomadyConfig'
+                  message:
+                    type: string
+        '400':
+          description: Invalid config payload or unreadable configPath
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /v1/worker/suggestions/daily:
     get:
       summary: Fetch today's generated dish suggestions
@@ -822,3 +927,62 @@ components:
       required:
         - code
         - message
+    ServerConfig:
+      type: object
+      properties:
+        port:
+          type: integer
+          default: 7777
+          description: Requires an app restart to take effect.
+    GemmaConfig:
+      type: object
+      properties:
+        modelFileName:
+          type: string
+          description: File name of the cached `.task` model bundle (MediaPipe LLM Inference format, not GGUF).
+        modelDownloadUrl:
+          type: string
+          description: Hugging Face (or other) mirror URL used when no Kaggle credentials are configured.
+        kaggleModelDownloadUrl:
+          type: string
+          description: Kaggle API URL used instead of modelDownloadUrl when Kaggle credentials are set.
+        kaggleUsername:
+          type: string
+          nullable: true
+        kaggleApiKey:
+          type: string
+          nullable: true
+          description: Redacted as "***redacted***" in GET/POST responses.
+        huggingfaceToken:
+          type: string
+          nullable: true
+          description: Redacted as "***redacted***" in GET/POST responses. Required for the gated Gemma HF repo.
+        maxTokens:
+          type: integer
+          default: 1024
+      example:
+        modelFileName: "gemma3-1b-it-int4.task"
+        modelDownloadUrl: "https://huggingface.co/litert-community/Gemma3-1B-IT/resolve/main/gemma3-1b-it-int4.task?download=true"
+        huggingfaceToken: "hf_xxx"
+    TomadyConfig:
+      type: object
+      properties:
+        server:
+          $ref: '#/components/schemas/ServerConfig'
+        gemma:
+          $ref: '#/components/schemas/GemmaConfig'
+    ConfigUpdateRequest:
+      description: >
+        Either a partial TomadyConfig-shaped object (merged recursively into the
+        existing config) or an object naming an on-device JSON file to load instead.
+      oneOf:
+        - $ref: '#/components/schemas/TomadyConfig'
+        - type: object
+          properties:
+            configPath:
+              type: string
+          required:
+            - configPath
+      example:
+        gemma:
+          huggingfaceToken: "hf_xxx"

@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.google.mediapipe.tasks.genai.llminference.LlmInference
 import com.google.mediapipe.tasks.genai.llminference.LlmInference.LlmInferenceOptions
+import com.tomady.nutrition.config.ConfigManager
 import com.tomady.nutrition.data.local.diet.DietDatabase
 import com.tomady.nutrition.data.local.diet.entity.Profile
 import com.tomady.nutrition.service.diet.DietAPIService
@@ -22,7 +23,7 @@ import java.util.concurrent.atomic.AtomicReference
 
 /**
  * On-device LLM service for natural-language meal analysis, recipe computation,
- * nutrition Q&A, and daily insight generation via **Google Gemma 4** running on
+ * nutrition Q&A, and daily insight generation via **Google Gemma** running on
  * **MediaPipe LLM Inference**.
  *
  * ## Architecture
@@ -43,7 +44,7 @@ import java.util.concurrent.atomic.AtomicReference
  * ```
  *
  * ## Model Lifecycle
- * 1. [loadModel] — Locates the GGUF model file (via [ModelDownloader]) and
+ * 1. [loadModel] — Locates the `.task` model file (via [ModelDownloader]) and
  *    initialises a [LlmInference] instance.
  * 2. [computeRecipe] / [askQuestion] / [generateTokens] / [generateDailyInsight] — Inference calls.
  * 3. [release] — Closes the [LlmInference] and frees native resources.
@@ -55,8 +56,9 @@ import java.util.concurrent.atomic.AtomicReference
  *
  * ## Fallback Behaviour
  * If no real model file is available (not downloaded yet), the service falls
- * back to [MockLLMEngine] so the app remains demonstrable without the ~2 GB
- * model download.
+ * back to [MockLLMEngine] so the app remains demonstrable without the model
+ * download. Trigger the real download via [downloadModelIfNeeded] (wired to
+ * `POST /api/v1/gemma/download` on the REST server).
  *
  * @param context       Android context (application) for file access and MediaPipe init.
  * @param dietDatabase  Wrapper around diet DAOs (used for profile lookup).
@@ -83,7 +85,8 @@ class GemmaAndroidService(
     /** Tracks active streaming sessions so they can be cancelled on release. */
     private val activeSessions = ConcurrentHashMap.newKeySet<String>()
 
-    private val modelDownloader = ModelDownloader(context)
+    private val configManager = ConfigManager(context)
+    private val modelDownloader = ModelDownloader(context, configManager)
 
     // ══════════════════════════════════════════════════════════════════════
     // SECTION 1 — LLM Lifecycle
@@ -96,11 +99,15 @@ class GemmaAndroidService(
      * MediaPipe LlmInference with the real model. Otherwise falls back
      * to MockLLMEngine instantly.
      *
-     * @param modelPath Optional explicit path to a GGUF model file.
+     * @param modelPath Optional explicit path to a `.task` model file.
      * @return `true` if the model (real or mock) is ready for inference.
      */
     suspend fun loadModel(modelPath: String? = null): Boolean = withContext(Dispatchers.IO) {
-        if (isLoaded.get()) return@withContext true
+        // Short-circuit only once the REAL model is loaded — if we're still on the
+        // mock fallback, keep retrying so a model downloaded after mock-load can
+        // still be picked up (otherwise isLoaded=true from the mock would wedge
+        // this service on mock responses forever).
+        if (isLoaded.get() && !isUsingMock.get()) return@withContext true
         if (isLoading.get()) return@withContext false
 
         isLoading.set(true)
@@ -109,15 +116,16 @@ class GemmaAndroidService(
 
             if (resolvedPath != null) {
                 try {
+                    val gemmaConfig = configManager.get().gemma
                     val options = LlmInferenceOptions.builder()
                         .setModelPath(resolvedPath)
-                        .setMaxTokens(MAX_TOKENS)
+                        .setMaxTokens(gemmaConfig.maxTokens)
                         .build()
                     llmInference = LlmInference.createFromOptions(context, options)
                     isLoaded.set(true)
                     isUsingMock.set(false)
-                    modelVersion.set("gemma-4-2b-it (MediaPipe, QAT 4-bit)")
-                    Log.i(TAG, "Gemma 4 model loaded via MediaPipe from: $resolvedPath")
+                    modelVersion.set("${gemmaConfig.modelFileName} (MediaPipe LlmInference)")
+                    Log.i(TAG, "Gemma model loaded via MediaPipe from: $resolvedPath")
                     return@withContext true
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to initialise MediaPipe LlmInference: ${e.message}", e)
@@ -546,7 +554,6 @@ class GemmaAndroidService(
 
     companion object {
         private const val TAG = "GemmaAndroidService"
-        private const val MAX_TOKENS = 1024
         private const val MODEL_INFERENCE_SIMULATED_MS = 800L
         private const val TOKEN_DELAY_MS_PER_CHAR = 15
     }

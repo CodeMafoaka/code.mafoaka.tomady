@@ -9,6 +9,7 @@ import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import com.tomady.nutrition.config.ConfigManager
 import com.tomady.nutrition.data.AppDatabase
 import com.tomady.nutrition.data.local.diet.DietDatabase
 import com.tomady.nutrition.data.local.foodb.FooDBLocalDatabase
@@ -150,21 +151,25 @@ class TomadyApp : Application() {
      * user knows the server is running. On Android 13+, the notification
      * requires the `POST_NOTIFICATIONS` runtime permission to display.
      *
-     * Server URL: `http://<device-wifi-ip>:7777/api/v1/health`
+     * Server URL: `http://<device-wifi-ip>:<configured-port>/api/v1/health`
+     * (default port 7777; configurable via `server.port` — see `POST /api/v1/config`,
+     * takes effect on the next app restart).
      */
     private fun startApiServer() {
+        val configuredPort = ConfigManager(this).get().server.port
         apiServer = TomadyRestApiServer(
             foodbService = foodbService,
             dietService = dietService,
             gemmaService = gemmaService,
             dietDatabase = dietDatabase,
-            context = this
+            context = this,
+            port = configuredPort
         )
         try {
             apiServer.start()
             android.util.Log.i(
                 TAG,
-                "REST API running at http://${TomadyRestApiServer.getLocalIpAddress()}:${TomadyRestApiServer.DEFAULT_PORT}/api/v1/health"
+                "REST API running at http://${TomadyRestApiServer.getLocalIpAddress()}:${apiServer.listeningPort}/api/v1/health"
             )
 
             // Start foreground service to keep the server alive

@@ -4,6 +4,8 @@ import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.tomady.nutrition.BuildConfig
+import com.tomady.nutrition.config.ConfigManager
+import com.tomady.nutrition.config.TomadyConfig
 import com.tomady.nutrition.data.local.diet.DietDatabase
 import com.tomady.nutrition.service.diet.DietAPIService
 import com.tomady.nutrition.service.foodb.FooDBDataAPIService
@@ -55,9 +57,19 @@ import java.net.NetworkInterface
  * - `POST /api/v1/diet/recipe` — Create a recipe with optional ingredients
  *
  * ### Gemma (AI)
- * - `POST /api/v1/gemma/load` — Load the Gemma model
+ * - `POST /api/v1/gemma/load` — Load the Gemma model (mock fallback if not cached)
+ * - `POST /api/v1/gemma/download` — Trigger the real model download, then load it
+ * - `GET  /api/v1/gemma/download/status` — Poll download/load progress
  * - `POST /api/v1/gemma/ask` — Ask a nutrition question (JSON: {question, userId})
  * - `POST /api/v1/gemma/compute-recipe` — Compute a recipe (JSON: {prompt, userId})
+ *
+ * ### Config
+ * - `GET  /api/v1/config` — Read the current backend config (secrets redacted)
+ * - `POST /api/v1/config` — Merge-update the config, either from an inline JSON
+ *   body matching [TomadyConfig]'s shape, or `{"configPath": "/on-device/path.json"}`
+ *   to load it from a file already on the device. Model/Gemma changes apply on
+ *   the next `/api/v1/gemma/load` or `/api/v1/gemma/download` call; `server.port`
+ *   changes apply on the next app restart.
  *
  * ### Worker
  * - `POST /api/v1/worker/trigger-daily-suggestion` — Force-run the daily suggestion worker
@@ -69,6 +81,7 @@ import java.net.NetworkInterface
  * @param context        Android application context (for WorkManager).
  * @param port           HTTP port to bind to (default 8910).
  * @param gson           Gson instance for JSON serialization.
+ * @param configManager  Backend configuration store (server port, Gemma model/download settings).
  */
 class TomadyRestApiServer(
     private val foodbService: FooDBDataAPIService,
@@ -77,7 +90,8 @@ class TomadyRestApiServer(
     private val dietDatabase: DietDatabase,
     private val context: android.content.Context,
     private val port: Int = DEFAULT_PORT,
-    private val gson: Gson = Gson()
+    private val gson: Gson = Gson(),
+    private val configManager: ConfigManager = ConfigManager(context)
 ) : NanoHTTPD(port) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -193,8 +207,14 @@ class TomadyRestApiServer(
 
             // ── Gemma ──────────────────────────────────────────────
             method == "POST" && uri == "/api/v1/gemma/load" -> handleGemmaLoad()
+            method == "POST" && uri == "/api/v1/gemma/download" -> handleGemmaDownload()
+            method == "GET" && uri == "/api/v1/gemma/download/status" -> handleGemmaDownloadStatus()
             method == "POST" && uri == "/api/v1/gemma/ask" -> handleGemmaAsk(body)
             method == "POST" && uri == "/api/v1/gemma/compute-recipe" -> handleGemmaComputeRecipe(body)
+
+            // ── Config ─────────────────────────────────────────────
+            method == "GET" && uri == "/api/v1/config" -> handleGetConfig()
+            method == "POST" && uri == "/api/v1/config" -> handleUpdateConfig(body)
 
             // ── Worker ─────────────────────────────────────────────
             method == "POST" && uri == "/api/v1/worker/trigger-daily-suggestion" -> handleTriggerWorker()
@@ -477,6 +497,91 @@ class TomadyRestApiServer(
             gemmaService.computeRecipe(prompt, userId)
         }
         return jsonOk(mapOf("result" to result))
+    }
+
+    /**
+     * Triggers a real Gemma model download (using the configured URL/credentials)
+     * and, on success, loads it — replacing the mock fallback. Runs in the
+     * background; poll `GET /api/v1/gemma/download/status` for progress.
+     */
+    private fun handleGemmaDownload(): Response {
+        // Real model already loaded and active — nothing to do.
+        if (gemmaService.isModelLoaded() && !gemmaService.isUsingMockFallback()) {
+            return jsonOk(mapOf(
+                "status" to "already_loaded",
+                "modelCached" to true,
+                "modelVersion" to gemmaService.getModelVersion()
+            ))
+        }
+        if (gemmaService.getDownloadProgress() != null) {
+            return jsonOk(mapOf("status" to "already_in_progress", "progress" to gemmaService.getDownloadProgress()))
+        }
+        // Cached on disk (maybe only mock-loaded so far) — just (re)load it, no download needed.
+        if (gemmaService.isModelCached()) {
+            scope.launch { gemmaService.loadModel() }
+            return jsonOk(mapOf("status" to "cached_loading", "modelCached" to true))
+        }
+
+        scope.launch {
+            val path = gemmaService.downloadModelIfNeeded()
+            if (path != null) {
+                gemmaService.loadModel(path)
+                android.util.Log.i(TAG, "Gemma model downloaded and loaded from $path")
+            } else {
+                android.util.Log.e(TAG, "Gemma model download failed — see ModelDownloader logs")
+            }
+        }
+
+        return jsonOk(mapOf("status" to "started", "modelCached" to false))
+    }
+
+    private fun handleGemmaDownloadStatus(): Response {
+        return jsonOk(mapOf(
+            "cached" to gemmaService.isModelCached(),
+            "downloading" to (gemmaService.getDownloadProgress() != null),
+            "progress" to gemmaService.getDownloadProgress(),
+            "loaded" to gemmaService.isModelLoaded(),
+            "usingMock" to gemmaService.isUsingMockFallback(),
+            "modelVersion" to gemmaService.getModelVersion()
+        ))
+    }
+
+    // ── Config ────────────────────────────────────────────────────────────
+
+    private fun handleGetConfig(): Response {
+        return jsonOk(redactConfig(configManager.get()))
+    }
+
+    private fun handleUpdateConfig(body: String?): Response {
+        if (body == null) return jsonError(400, "Request body required")
+        val json = tryParseJson(body) ?: return jsonError(400, "Invalid JSON")
+        val updated = try {
+            if (json.has("configPath")) {
+                configManager.loadFromFilePath(json.get("configPath").asString)
+            } else {
+                configManager.update(json)
+            }
+        } catch (e: Exception) {
+            return jsonError(400, "Failed to apply config: ${e.message}")
+        }
+        return jsonOk(mapOf(
+            "config" to redactConfig(updated),
+            "message" to "Config saved. Call POST /api/v1/gemma/download (or /api/v1/gemma/load) to apply " +
+                "model changes; server.port changes require an app restart."
+        ))
+    }
+
+    /** Replaces secret fields with a redaction marker before returning config over HTTP. */
+    private fun redactConfig(config: TomadyConfig): JsonObject {
+        val obj = gson.toJsonTree(config).asJsonObject
+        val gemma = obj.getAsJsonObject("gemma")
+        for (secretField in listOf("kaggleApiKey", "huggingfaceToken")) {
+            val value = gemma.get(secretField)
+            if (value != null && !value.isJsonNull) {
+                gemma.addProperty(secretField, "***redacted***")
+            }
+        }
+        return obj
     }
 
     // ── Worker ──────────────────────────────────────────────────────────
