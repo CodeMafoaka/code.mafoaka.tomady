@@ -143,9 +143,11 @@ class TomadyApp : Application() {
 
         // 3. Create service instances
         foodbService = FooDBDataAPIService(localDatabase = foodbLocal)
+        nutritionLookupService = NutritionLookupService(configManager = ConfigManager(this))
         dietService = DietAPIService(
             dietDatabase = dietDatabase,
-            foodbService = foodbService
+            foodbService = foodbService,
+            nutritionLookupService = nutritionLookupService
         )
         gemmaService = GemmaAndroidService(
             context = this,
@@ -157,7 +159,6 @@ class TomadyApp : Application() {
             localDatabase = foodbLocal,
             configManager = ConfigManager(this)
         )
-        nutritionLookupService = NutritionLookupService(configManager = ConfigManager(this))
 
         // 4. Bootstrap: if nothing has ever populated the local FooDB cache
         // (no Postgres sync configured/run yet), seed a small set of known

@@ -2,16 +2,22 @@ package com.tomady.nutrition.data.local.diet.entity
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
  * Room entity representing a full recipe with preparation instructions.
  */
-@Entity(tableName = "recipe")
+@Entity(tableName = "recipe", indices = [Index("dish_id")])
 data class Recipe(
     @PrimaryKey
     @ColumnInfo(name = "id")
     val id: String,
+
+    /** The [Dish] this recipe composes — its aggregated ingredient macros
+     * (see `DietAPIService.computeDishNutrition`) are that dish's nutrition. */
+    @ColumnInfo(name = "dish_id")
+    val dishId: String? = null,
 
     @ColumnInfo(name = "name")
     val name: String,

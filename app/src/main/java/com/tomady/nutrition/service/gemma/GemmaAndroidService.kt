@@ -198,6 +198,7 @@ class GemmaAndroidService(
 
         val recipe = dietService.createRecipe(
             name = recipeData.dishName,
+            dishId = dish.id,
             description = recipeData.description,
             instructions = recipeData.instructions,
             prepTimeMinutes = recipeData.prepTimeMinutes,

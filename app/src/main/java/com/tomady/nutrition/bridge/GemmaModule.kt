@@ -9,6 +9,7 @@ import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.google.gson.Gson
+import com.tomady.nutrition.config.ConfigManager
 import com.tomady.nutrition.data.AppDatabase
 import com.tomady.nutrition.data.local.diet.DietDatabase
 import com.tomady.nutrition.data.local.foodb.FooDBLocalDatabase
@@ -16,6 +17,7 @@ import com.tomady.nutrition.service.diet.DietAPIService
 import com.tomady.nutrition.service.foodb.FooDBDataAPIService
 import com.tomady.nutrition.service.gemma.GemmaAndroidService
 import com.tomady.nutrition.service.gemma.GemmaMealsSummary
+import com.tomady.nutrition.service.nutrition.NutritionLookupService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -106,7 +108,11 @@ class GemmaModule(reactContext: ReactApplicationContext) :
             recipeIngredientDao = db.recipeIngredientDao(),
             dishHistoryDao = db.dishHistoryDao()
         )
-        val dietService = DietAPIService(dietDatabase = dietDb, foodbService = foodbService)
+        val dietService = DietAPIService(
+            dietDatabase = dietDb,
+            foodbService = foodbService,
+            nutritionLookupService = NutritionLookupService(ConfigManager(ctx))
+        )
         GemmaAndroidService(
             context = ctx,
             dietDatabase = dietDb,

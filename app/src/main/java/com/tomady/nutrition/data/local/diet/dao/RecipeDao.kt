@@ -39,6 +39,9 @@ interface RecipeDao {
     @Query("SELECT * FROM recipe WHERE name LIKE '%' || :query || '%' OR description LIKE '%' || :query || '%'")
     suspend fun search(query: String): List<Recipe>
 
+    @Query("SELECT * FROM recipe WHERE dish_id = :dishId")
+    suspend fun getByDishId(dishId: String): List<Recipe>
+
     @Query("DELETE FROM recipe WHERE id = :id")
     suspend fun deleteById(id: String)
 }

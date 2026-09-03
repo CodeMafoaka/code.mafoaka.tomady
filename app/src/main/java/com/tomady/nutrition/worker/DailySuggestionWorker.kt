@@ -9,8 +9,10 @@ import com.tomady.nutrition.data.local.diet.DietDatabase
 import com.tomady.nutrition.data.local.diet.entity.DishHistory
 import com.tomady.nutrition.data.local.foodb.FooDBLocalDatabase
 import com.tomady.nutrition.service.diet.DietAPIService
+import com.tomady.nutrition.config.ConfigManager
 import com.tomady.nutrition.service.foodb.FooDBDataAPIService
 import com.tomady.nutrition.service.gemma.GemmaAndroidService
+import com.tomady.nutrition.service.nutrition.NutritionLookupService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -70,7 +72,11 @@ class DailySuggestionWorker(
             nutrientPropertyDao = db.nutrientPropertyDao()
         )
         val foodbService = FooDBDataAPIService(localDatabase = foodbDb)
-        val dietService = DietAPIService(dietDatabase = dietDb, foodbService = foodbService)
+        val dietService = DietAPIService(
+            dietDatabase = dietDb,
+            foodbService = foodbService,
+            nutritionLookupService = NutritionLookupService(ConfigManager(applicationContext))
+        )
 
         GemmaAndroidService(
             context = applicationContext,

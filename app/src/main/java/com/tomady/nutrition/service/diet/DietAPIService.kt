@@ -9,6 +9,7 @@ import com.tomady.nutrition.data.local.diet.entity.Recipe
 import com.tomady.nutrition.data.local.diet.entity.RecipeIngredient
 import com.tomady.nutrition.data.local.diet.entity.User
 import com.tomady.nutrition.service.foodb.FooDBDataAPIService
+import com.tomady.nutrition.service.nutrition.NutritionLookupService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.UUID
@@ -20,16 +21,21 @@ import java.util.UUID
  * - Complete CRUD operations for [User], [Profile], [BioRecord], [Dish],
  *   [Recipe], [RecipeIngredient], and [DishHistory]
  * - Nutritional value computation for a [Dish] by aggregating its [RecipeIngredient]
- *   entries using [FooDBDataAPIService]
+ *   entries via [NutritionLookupService] (name-based macro lookup — see
+ *   [computeDishNutrition] for why this isn't [FooDBDataAPIService])
  * - Profile-based health validation (e.g., flagging high-sugar dishes for diabetes)
  * - Daily calorie/macro targets computed from [Profile] and [BioRecord]
  *
  * @param dietDatabase  Wrapper around the diet Room database DAOs.
- * @param foodbService  FooDB service for looking up nutrient values by food ID.
+ * @param foodbService  FooDB service — used to resolve an ingredient's name
+ * from its catalogue id when [RecipeIngredient.name] isn't set directly.
+ * @param nutritionLookupService Pluggable macro-nutrient lookup, used to
+ * price out each recipe ingredient by name.
  */
 class DietAPIService(
     private val dietDatabase: DietDatabase,
-    private val foodbService: FooDBDataAPIService
+    private val foodbService: FooDBDataAPIService,
+    private val nutritionLookupService: NutritionLookupService
 ) {
 
     // ══════════════════════════════════════════════════════════════════════
@@ -243,9 +249,14 @@ class DietAPIService(
 
     /**
      * Creates a [Recipe] and optionally its [RecipeIngredient] entries.
+     *
+     * @param dishId The [Dish] this recipe composes — pass the id returned by
+     * [createDish] so [computeDishNutrition] can find it again by FK instead
+     * of a fragile name match.
      */
     suspend fun createRecipe(
         name: String,
+        dishId: String? = null,
         description: String? = null,
         instructions: String? = null,
         prepTimeMinutes: Int? = null,
@@ -256,6 +267,7 @@ class DietAPIService(
     ): Recipe = withContext(Dispatchers.IO) {
         val recipe = Recipe(
             id = UUID.randomUUID().toString(),
+            dishId = dishId,
             name = name,
             description = description,
             instructions = instructions,
@@ -401,74 +413,64 @@ class DietAPIService(
 
     /**
      * Computes the total nutritional profile of a [Dish] by aggregating the
-     * nutrient values of all [RecipeIngredient] entries across all associated
-     * recipes.
+     * macro values of all [RecipeIngredient] entries across its recipes —
+     * this is the primary path: a dish's nutrition comes from what it's made
+     * of, not a number typed in once (see [createDish]'s `calories`/etc.
+     * params, which are the manual-entry fallback for when no recipe exists).
      *
-     * For each ingredient that has a numeric [RecipeIngredient.foodItemId],
-     * the method looks up the food's nutrient properties via [FooDBDataAPIService]
-     * and scales them by the ingredient quantity.
+     * Each ingredient is priced out per 100g: first via [FooDBDataAPIService]
+     * if its catalogue entry happens to carry real values (true for the
+     * bundled seed/demo dataset, offline and instant), otherwise via
+     * [nutritionLookupService] (USDA FoodData Central, by name) — real synced
+     * FooDB data turned out to carry no usable calorie/macro values at all
+     * (see [com.tomady.nutrition.service.nutrition.NutrientDataProvider]'s
+     * kdoc), which is why that fallback exists.
      *
      * @param dishId The ID of the dish to analyze.
      * @return A [NutritionSummary] with aggregated values, or null if the dish
-     *         or its recipes cannot be found.
+     *         cannot be found.
      */
     suspend fun computeDishNutrition(dishId: String): NutritionSummary? = withContext(Dispatchers.IO) {
         // 1. Resolve the dish
         val dish = dietDatabase.getDishById(dishId) ?: return@withContext null
 
-        // 2. Find recipes linked to this dish (via dish name heuristic or direct relation)
-        //    For MVP, we search recipes by name similarity to the dish.
-        //    A production version would add a dish_id column to Recipe.
-        val recipes = mutableListOf<Recipe>()
-        // Simple approach: if a recipe with a matching name exists
-        val matchingRecipes = dietDatabase.recipeDao.search(dish.name)
-        recipes.addAll(matchingRecipes)
+        // 2. Find recipes linked to this dish by FK
+        val recipes = dietDatabase.getRecipesByDishId(dishId)
 
-        // 3. Aggregate nutrients across all recipe ingredients
+        // 3. Aggregate macros across all recipe ingredients
         var totalCalories = 0.0
         var totalProteinG = 0.0
         var totalCarbsG = 0.0
         var totalFatG = 0.0
         var totalFiberG = 0.0
-        var totalSugarG = 0.0
-        var totalSodiumMg = 0.0
+        val totalSugarG = 0.0
+        val totalSodiumMg = 0.0
         val nutrientDetails = mutableListOf<NutrientDetail>()
 
         for (recipe in recipes) {
             val ingredients = dietDatabase.getIngredientsByRecipe(recipe.id)
             for (ingredient in ingredients) {
-                val foodItemId = ingredient.foodItemId?.toLongOrNull()
-                if (foodItemId == null) continue
+                val priced = priceIngredient(ingredient) ?: continue
 
-                val detail = foodbService.getFoodDetails(foodItemId)
-                if (detail == null) continue
+                totalCalories += priced.calories
+                totalProteinG += priced.proteinG
+                totalCarbsG += priced.carbsG
+                totalFatG += priced.fatG
+                totalFiberG += priced.fiberG
 
-                val scale = ingredient.quantity ?: 1.0
-                for (np in detail.nutrients) {
-                    val scaledAmount = (np.amount ?: 0.0) * scale
-                    when (np.nutrientName?.lowercase()) {
-                        "energy", "calories", "kcal" -> totalCalories += scaledAmount
-                        "protein" -> totalProteinG += scaledAmount
-                        "carbohydrate", "carbohydrates", "carbs" -> totalCarbsG += scaledAmount
-                        "fat", "total fat", "total lipid" -> totalFatG += scaledAmount
-                        "fiber", "fibre", "dietary fiber" -> totalFiberG += scaledAmount
-                        "sugars", "total sugars" -> totalSugarG += scaledAmount
-                        "sodium", "na" -> totalSodiumMg += scaledAmount
-                    }
-                    nutrientDetails.add(
-                        NutrientDetail(
-                            nutrientName = np.nutrientName ?: "unknown",
-                            amount = scaledAmount,
-                            unit = np.unit ?: "g",
-                            sourceFoodId = foodItemId,
-                            sourceFoodName = detail.food.name ?: ingredient.name ?: ""
-                        )
+                nutrientDetails.add(
+                    NutrientDetail(
+                        nutrientName = "calories",
+                        amount = priced.calories,
+                        unit = "kcal",
+                        sourceFoodId = ingredient.foodItemId?.toLongOrNull(),
+                        sourceFoodName = priced.matchedName
                     )
-                }
+                )
             }
         }
 
-        // 4. Use dish-level pre-computed fields as fallback
+        // 4. Use dish-level pre-computed fields as fallback (manual entry, no recipe)
         if (recipes.isEmpty()) {
             dish.calories?.let { totalCalories = it.toDouble() }
             dish.proteinGrams?.let { totalProteinG = it }
@@ -488,6 +490,77 @@ class DietAPIService(
             totalSodiumMg = totalSodiumMg,
             nutrientDetails = nutrientDetails
         )
+    }
+
+    /** One [RecipeIngredient] priced out to absolute (already-scaled) macros. */
+    private data class PricedIngredient(
+        val calories: Double,
+        val proteinG: Double,
+        val carbsG: Double,
+        val fatG: Double,
+        val fiberG: Double,
+        val matchedName: String
+    )
+
+    /**
+     * Resolves a [RecipeIngredient]'s macros, scaled to its actual quantity.
+     * Tries [FooDBDataAPIService] first (real values for the bundled seed/demo
+     * dataset, offline and instant); falls back to [nutritionLookupService]
+     * (USDA, by name) since real synced FooDB data has no usable values.
+     * Returns null if neither source can price it.
+     */
+    private suspend fun priceIngredient(ingredient: RecipeIngredient): PricedIngredient? {
+        val foodItemId = ingredient.foodItemId?.toLongOrNull()
+        val foodDetail = foodItemId?.let { foodbService.getFoodDetails(it) }
+        // Ingredient quantity is grams; source macros are per 100g.
+        val scale = (ingredient.quantity ?: 100.0) / 100.0
+
+        val fooDbNutrients = foodDetail?.nutrients?.takeIf { list -> list.any { it.amount != null } }
+        if (fooDbNutrients != null) {
+            var cal = 0.0; var pro = 0.0; var carb = 0.0; var fat = 0.0; var fiber = 0.0
+            for (np in fooDbNutrients) {
+                val amount = (np.amount ?: 0.0) * scale
+                when (np.nutrientName?.lowercase()) {
+                    "energy", "calories", "kcal" -> cal += amount
+                    "protein" -> pro += amount
+                    "carbohydrate", "carbohydrates", "carbs" -> carb += amount
+                    "fat", "total fat", "total lipid" -> fat += amount
+                    "fiber", "fibre", "dietary fiber" -> fiber += amount
+                }
+            }
+            return PricedIngredient(cal, pro, carb, fat, fiber, foodDetail.food.name ?: ingredient.name ?: "")
+        }
+
+        val ingredientName = ingredient.name ?: foodDetail?.food?.name ?: return null
+        val macros = nutritionLookupService.getMacros(ingredientName) ?: return null
+        return PricedIngredient(
+            calories = (macros.calories ?: 0.0) * scale,
+            proteinG = (macros.proteinG ?: 0.0) * scale,
+            carbsG = (macros.carbsG ?: 0.0) * scale,
+            fatG = (macros.fatG ?: 0.0) * scale,
+            fiberG = (macros.fiberG ?: 0.0) * scale,
+            matchedName = macros.matchedName
+        )
+    }
+
+    /**
+     * Recomputes [dishId]'s nutrition from its recipe (see [computeDishNutrition])
+     * and writes the totals onto the [Dish]'s own flat fields, so screens that
+     * read `Dish.calories`/etc directly (search results, catalogue lists) show
+     * an up-to-date value without recomputing from the recipe on every read.
+     */
+    suspend fun refreshDishNutritionCache(dishId: String): Dish? = withContext(Dispatchers.IO) {
+        val dish = dietDatabase.getDishById(dishId) ?: return@withContext null
+        val nutrition = computeDishNutrition(dishId) ?: return@withContext dish
+        val updated = dish.copy(
+            calories = nutrition.totalCalories.toInt(),
+            proteinGrams = nutrition.totalProteinG,
+            carbsGrams = nutrition.totalCarbsG,
+            fatGrams = nutrition.totalFatG,
+            updatedAt = System.currentTimeMillis()
+        )
+        dietDatabase.updateDish(updated)
+        updated
     }
 
     /**
@@ -735,7 +808,7 @@ data class NutrientDetail(
     val nutrientName: String,
     val amount: Double,
     val unit: String,
-    val sourceFoodId: Long,
+    val sourceFoodId: Long?,
     val sourceFoodName: String
 )
 

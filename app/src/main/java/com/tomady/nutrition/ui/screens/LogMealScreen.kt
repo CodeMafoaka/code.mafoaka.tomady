@@ -6,20 +6,24 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -53,6 +57,9 @@ private fun currentTimeHHmm(): String {
     return "%02d:%02d".format(now.hour, now.minute)
 }
 
+/** One row of the ingredient list when building a new dish from its recipe. */
+private data class IngredientDraft(val name: String = "", val quantityG: String = "100")
+
 /**
  * Full-screen "log what I ate" flow (the hackathon-demoed feature): search
  * across known dishes (real macros already on file) and the FooDB catalogue
@@ -83,6 +90,8 @@ fun LogMealScreen(onDone: () -> Unit) {
     var showManualEntry by remember { mutableStateOf(false) }
 
     var manualName by remember { mutableStateOf("") }
+    var ingredientDrafts by remember { mutableStateOf(listOf(IngredientDraft())) }
+    var useManualMacros by remember { mutableStateOf(false) }
     var manualKcal by remember { mutableStateOf("") }
     var manualProtein by remember { mutableStateOf("") }
     var manualCarbs by remember { mutableStateOf("") }
@@ -129,6 +138,8 @@ fun LogMealScreen(onDone: () -> Unit) {
         selectedMacros = null
         showManualEntry = true
         manualName = query
+        ingredientDrafts = listOf(IngredientDraft())
+        useManualMacros = false
     }
 
     fun save() {
@@ -167,7 +178,7 @@ fun LogMealScreen(onDone: () -> Unit) {
                         notes = name
                     )
                 }
-                showManualEntry -> {
+                showManualEntry && useManualMacros -> {
                     val newDish = app.dietService.createDish(
                         name = manualName,
                         calories = manualKcal.toIntOrNull(),
@@ -175,6 +186,31 @@ fun LogMealScreen(onDone: () -> Unit) {
                         carbsGrams = manualCarbs.toDoubleOrNull(),
                         fatGrams = manualFat.toDoubleOrNull()
                     )
+                    app.dietService.logMealConsumption(
+                        userId = CURRENT_USER_ID,
+                        dishId = newDish.id,
+                        date = today,
+                        time = eatenTime,
+                        servings = 1.0,
+                        notes = manualName
+                    )
+                }
+                showManualEntry -> {
+                    // Primary path: the dish's nutrition comes from what it's
+                    // made of (its recipe), computed by looking up each
+                    // ingredient's macros — not a number typed in once.
+                    val newDish = app.dietService.createDish(name = manualName)
+                    val recipe = app.dietService.createRecipe(name = manualName, dishId = newDish.id)
+                    for (draft in ingredientDrafts) {
+                        if (draft.name.isBlank()) continue
+                        app.dietService.addRecipeIngredient(
+                            recipeId = recipe.id,
+                            name = draft.name,
+                            quantity = draft.quantityG.toDoubleOrNull() ?: 100.0,
+                            unit = "g"
+                        )
+                    }
+                    app.dietService.refreshDishNutritionCache(newDish.id)
                     app.dietService.logMealConsumption(
                         userId = CURRENT_USER_ID,
                         dishId = newDish.id,
@@ -193,7 +229,8 @@ fun LogMealScreen(onDone: () -> Unit) {
     val canSave = when {
         selectedDish != null -> true
         selectedFood != null -> !lookingUpMacros
-        showManualEntry -> manualName.isNotBlank()
+        showManualEntry && useManualMacros -> manualName.isNotBlank()
+        showManualEntry -> manualName.isNotBlank() && ingredientDrafts.any { it.name.isNotBlank() }
         else -> false
     }
 
@@ -231,6 +268,17 @@ fun LogMealScreen(onDone: () -> Unit) {
                     onEatenTimeChange = { eatenTime = it },
                     manualName = manualName,
                     onManualNameChange = { manualName = it },
+                    ingredientDrafts = ingredientDrafts,
+                    onIngredientChange = { index, draft ->
+                        ingredientDrafts = ingredientDrafts.toMutableList().also { it[index] = draft }
+                    },
+                    onAddIngredient = { ingredientDrafts = ingredientDrafts + IngredientDraft() },
+                    onRemoveIngredient = { index ->
+                        ingredientDrafts = ingredientDrafts.toMutableList().also { it.removeAt(index) }
+                            .ifEmpty { listOf(IngredientDraft()) }
+                    },
+                    useManualMacros = useManualMacros,
+                    onUseManualMacrosChange = { useManualMacros = it },
                     manualKcal = manualKcal,
                     onManualKcalChange = { manualKcal = it },
                     manualProtein = manualProtein,
@@ -362,6 +410,12 @@ private fun SelectionDetail(
     onEatenTimeChange: (String) -> Unit,
     manualName: String,
     onManualNameChange: (String) -> Unit,
+    ingredientDrafts: List<IngredientDraft>,
+    onIngredientChange: (Int, IngredientDraft) -> Unit,
+    onAddIngredient: () -> Unit,
+    onRemoveIngredient: (Int) -> Unit,
+    useManualMacros: Boolean,
+    onUseManualMacrosChange: (Boolean) -> Unit,
     manualKcal: String,
     onManualKcalChange: (String) -> Unit,
     manualProtein: String,
@@ -446,37 +500,101 @@ private fun SelectionDetail(
                     )
                 }
                 showManualEntry -> {
-                    Text("Entrée manuelle", style = MaterialTheme.typography.titleSmall, color = TomadyColors.ink)
+                    Text("Nouvel aliment / plat", style = MaterialTheme.typography.titleSmall, color = TomadyColors.ink)
                     OutlinedTextField(
                         value = manualName,
                         onValueChange = onManualNameChange,
-                        label = { Text("Nom du repas") },
+                        label = { Text("Nom") },
                         modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
                     )
-                    OutlinedTextField(
-                        value = manualKcal,
-                        onValueChange = onManualKcalChange,
-                        label = { Text("Calories (kcal)") },
-                        modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
-                    )
-                    OutlinedTextField(
-                        value = manualProtein,
-                        onValueChange = onManualProteinChange,
-                        label = { Text("Protéines (g)") },
-                        modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
-                    )
-                    OutlinedTextField(
-                        value = manualCarbs,
-                        onValueChange = onManualCarbsChange,
-                        label = { Text("Glucides (g)") },
-                        modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
-                    )
-                    OutlinedTextField(
-                        value = manualFat,
-                        onValueChange = onManualFatChange,
-                        label = { Text("Lipides (g)") },
-                        modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
-                    )
+
+                    if (useManualMacros) {
+                        Text(
+                            "Valeurs nutritionnelles",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = TomadyColors.ink,
+                            modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)
+                        )
+                        OutlinedTextField(
+                            value = manualKcal,
+                            onValueChange = onManualKcalChange,
+                            label = { Text("Calories (kcal)") },
+                            modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
+                        )
+                        OutlinedTextField(
+                            value = manualProtein,
+                            onValueChange = onManualProteinChange,
+                            label = { Text("Protéines (g)") },
+                            modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
+                        )
+                        OutlinedTextField(
+                            value = manualCarbs,
+                            onValueChange = onManualCarbsChange,
+                            label = { Text("Glucides (g)") },
+                            modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
+                        )
+                        OutlinedTextField(
+                            value = manualFat,
+                            onValueChange = onManualFatChange,
+                            label = { Text("Lipides (g)") },
+                            modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
+                        )
+                        TextButton(
+                            onClick = { onUseManualMacrosChange(false) },
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                        ) {
+                            Text("Revenir à la liste d'ingrédients")
+                        }
+                    } else {
+                        Text(
+                            "Ingrédients",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = TomadyColors.ink,
+                            modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)
+                        )
+                        Text(
+                            "Les valeurs nutritionnelles sont calculées à partir des ingrédients.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TomadyColors.muted
+                        )
+                        ingredientDrafts.forEachIndexed { index, draft ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                            ) {
+                                OutlinedTextField(
+                                    value = draft.name,
+                                    onValueChange = { onIngredientChange(index, draft.copy(name = it)) },
+                                    label = { Text("Ingrédient") },
+                                    singleLine = true,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                OutlinedTextField(
+                                    value = draft.quantityG,
+                                    onValueChange = { onIngredientChange(index, draft.copy(quantityG = it)) },
+                                    label = { Text("g") },
+                                    singleLine = true,
+                                    modifier = Modifier.width(80.dp).padding(start = 8.dp)
+                                )
+                                IconButton(onClick = { onRemoveIngredient(index) }) {
+                                    Icon(Icons.Filled.Close, contentDescription = "Retirer l'ingrédient")
+                                }
+                            }
+                        }
+                        TextButton(
+                            onClick = onAddIngredient,
+                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                        ) {
+                            Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
+                            Text("Ajouter un ingrédient")
+                        }
+                        TextButton(
+                            onClick = { onUseManualMacrosChange(true) },
+                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                        ) {
+                            Text("Je connais déjà les valeurs nutritionnelles")
+                        }
+                    }
                 }
             }
         }

@@ -3,6 +3,7 @@ package com.tomady.nutrition.demo
 import android.content.Context
 import android.webkit.JavascriptInterface
 import com.google.gson.Gson
+import com.tomady.nutrition.config.ConfigManager
 import com.tomady.nutrition.data.AppDatabase
 import com.tomady.nutrition.data.local.diet.DietDatabase
 import com.tomady.nutrition.data.local.foodb.FooDBLocalDatabase
@@ -14,6 +15,7 @@ import com.tomady.nutrition.service.foodb.FooDBDataAPIService
 import com.tomady.nutrition.service.gemma.GemmaAndroidService
 import com.tomady.nutrition.service.gemma.GemmaAnswerResult
 import com.tomady.nutrition.service.gemma.GemmaRecipeResult
+import com.tomady.nutrition.service.nutrition.NutritionLookupService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -56,7 +58,11 @@ class DemoJSBridge(context: Context) {
             recipeIngredientDao = db.recipeIngredientDao(),
             dishHistoryDao = db.dishHistoryDao()
         )
-        DietAPIService(dietDatabase = dietDb, foodbService = foodbService)
+        DietAPIService(
+            dietDatabase = dietDb,
+            foodbService = foodbService,
+            nutritionLookupService = NutritionLookupService(ConfigManager(context.applicationContext))
+        )
     }
 
     private val gemmaService: GemmaAndroidService by lazy {

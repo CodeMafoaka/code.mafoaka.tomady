@@ -528,6 +528,7 @@ class TomadyRestApiServer(
         val recipe = runBlocking {
             dietService.createRecipe(
                 name = name,
+                dishId = json.get("dishId")?.asString,
                 description = json.get("description")?.asString,
                 instructions = json.get("instructions")?.asString,
                 prepTimeMinutes = json.get("prepTimeMinutes")?.asInt,

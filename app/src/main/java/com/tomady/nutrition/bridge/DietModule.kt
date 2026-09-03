@@ -8,12 +8,14 @@ import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.WritableMap
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import com.tomady.nutrition.config.ConfigManager
 import com.tomady.nutrition.data.AppDatabase
 import com.tomady.nutrition.data.local.diet.DietDatabase
 import com.tomady.nutrition.service.diet.DietAPIService
 import com.tomady.nutrition.service.diet.DailyTargets
 import com.tomady.nutrition.service.foodb.FooDBDataAPIService
 import com.tomady.nutrition.data.local.foodb.FooDBLocalDatabase
+import com.tomady.nutrition.service.nutrition.NutritionLookupService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -84,7 +86,11 @@ class DietModule(reactContext: ReactApplicationContext) :
             recipeIngredientDao = db.recipeIngredientDao(),
             dishHistoryDao = db.dishHistoryDao()
         )
-        DietAPIService(dietDatabase = dietDb, foodbService = foodbService)
+        DietAPIService(
+            dietDatabase = dietDb,
+            foodbService = foodbService,
+            nutritionLookupService = NutritionLookupService(ConfigManager(reactApplicationContext))
+        )
     }
 
     // ════════════════════════════════════════════════════════════════════
