@@ -136,6 +136,28 @@ fun ProfileScreen() {
             ) {
                 Text(if (saving) "Enregistrement…" else "Enregistrer")
             }
+
+            SectionCard {
+                Text(
+                    "Sources de données",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = TomadyColors.ink,
+                    modifier = Modifier.padding(bottom = 6.dp)
+                )
+                Text(
+                    "Composition chimique des aliments : FooDB (foodb.ca). " +
+                        "This work is licensed under a Creative Commons " +
+                        "Attribution-NonCommercial 4.0 International License.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TomadyColors.muted
+                )
+                Text(
+                    "Valeurs nutritionnelles (calories, macros) : USDA FoodData Central (fdc.nal.usda.gov).",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TomadyColors.muted,
+                    modifier = Modifier.padding(top = 6.dp)
+                )
+            }
         }
     }
 }
