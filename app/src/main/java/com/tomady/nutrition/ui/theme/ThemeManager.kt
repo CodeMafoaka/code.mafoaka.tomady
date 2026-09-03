@@ -5,7 +5,7 @@ import android.graphics.Color as AndroidColor
 import androidx.compose.ui.graphics.Color
 import org.json.JSONObject
 
-/** One full set of design-token colors, as loaded from a `assets/themes/*.json` file. */
+/** One full set of design-token colors, as loaded from an `assets/themes` JSON file. */
 data class ThemeColorSet(
     val name: String,
     val label: String,
