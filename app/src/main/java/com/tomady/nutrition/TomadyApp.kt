@@ -20,6 +20,7 @@ import com.tomady.nutrition.service.diet.DietAPIService
 import com.tomady.nutrition.service.foodb.FooDBDataAPIService
 import com.tomady.nutrition.service.foodb.FooDBRemoteSyncService
 import com.tomady.nutrition.service.gemma.GemmaAndroidService
+import com.tomady.nutrition.service.nutrition.NutritionLookupService
 import com.tomady.nutrition.worker.DailySuggestionWorker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -67,6 +68,10 @@ class TomadyApp : Application() {
 
     /** Syncs the local FooDB cache from a remote Postgres instance, if configured. */
     lateinit var foodbSyncService: FooDBRemoteSyncService
+        private set
+
+    /** Pluggable macro-nutrient (calorie/protein/carb/fat) lookup — see NutritionLookupService. */
+    lateinit var nutritionLookupService: NutritionLookupService
         private set
 
     /** Embedded REST API server for local-network access. */
@@ -152,6 +157,7 @@ class TomadyApp : Application() {
             localDatabase = foodbLocal,
             configManager = ConfigManager(this)
         )
+        nutritionLookupService = NutritionLookupService(configManager = ConfigManager(this))
 
         // 4. Bootstrap: if nothing has ever populated the local FooDB cache
         // (no Postgres sync configured/run yet), seed a small set of known
@@ -184,6 +190,7 @@ class TomadyApp : Application() {
             dietService = dietService,
             gemmaService = gemmaService,
             foodbSyncService = foodbSyncService,
+            nutritionLookupService = nutritionLookupService,
             dietDatabase = dietDatabase,
             context = this,
             port = configuredPort

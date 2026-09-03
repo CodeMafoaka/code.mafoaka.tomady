@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.tomady.nutrition.service.foodb.FoodDetailResult
+import com.tomady.nutrition.service.nutrition.FoodMacros
 import com.tomady.nutrition.ui.components.SectionCard
 import com.tomady.nutrition.ui.components.TomadyTopBar
 import com.tomady.nutrition.ui.rememberTomadyApp
@@ -32,11 +33,17 @@ import com.tomady.nutrition.ui.theme.TomadyColors
 fun FoodDetailScreen(foodId: Long, onBack: () -> Unit) {
     val app = rememberTomadyApp()
     var detail by remember { mutableStateOf<FoodDetailResult?>(null) }
+    var macros by remember { mutableStateOf<FoodMacros?>(null) }
     var loading by remember { mutableStateOf(true) }
 
     LaunchedEffect(foodId) {
         loading = true
-        detail = app.foodbService.getFoodDetails(foodId)
+        val result = app.foodbService.getFoodDetails(foodId)
+        detail = result
+        // FooDB itself carries no usable macro data (compound/phytochemical
+        // composition only) — macros come from a separate provider, joined
+        // by food name. See NutritionLookupService.
+        macros = result?.food?.name?.let { app.nutritionLookupService.getMacros(it) }
         loading = false
     }
 
@@ -92,10 +99,46 @@ fun FoodDetailScreen(foodId: Long, onBack: () -> Unit) {
                         }
                     }
                 }
+                item {
+                    val m = macros
+                    SectionCard {
+                        Text(
+                            "Macronutriments",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = TomadyColors.ink,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                        if (m == null) {
+                            Text(
+                                "Aucune correspondance trouvée (source : USDA FoodData Central).",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TomadyColors.muted
+                            )
+                        } else {
+                            Text(
+                                "Pour : ${m.matchedName}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TomadyColors.muted
+                            )
+                            Text(
+                                listOfNotNull(
+                                    m.calories?.let { "${it.toInt()} kcal" },
+                                    m.proteinG?.let { "P${it.toInt()}g" },
+                                    m.carbsG?.let { "G${it.toInt()}g" },
+                                    m.fatG?.let { "L${it.toInt()}g" },
+                                    m.fiberG?.let { "Fibres ${it.toInt()}g" }
+                                ).joinToString(" · "),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TomadyColors.inkSoft,
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                        }
+                    }
+                }
                 if (d.nutrients.isEmpty()) {
                     item {
                         Text(
-                            "Aucune donnée nutritionnelle disponible pour cet aliment.",
+                            "Aucune donnée de composition chimique disponible pour cet aliment (FooDB).",
                             style = MaterialTheme.typography.bodyMedium,
                             color = TomadyColors.muted
                         )
@@ -103,7 +146,7 @@ fun FoodDetailScreen(foodId: Long, onBack: () -> Unit) {
                 } else {
                     item {
                         Text(
-                            "Valeurs nutritionnelles",
+                            "Composition chimique (FooDB)",
                             style = MaterialTheme.typography.titleSmall,
                             color = TomadyColors.ink
                         )

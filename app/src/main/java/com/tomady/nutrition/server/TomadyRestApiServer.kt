@@ -11,6 +11,7 @@ import com.tomady.nutrition.service.diet.DietAPIService
 import com.tomady.nutrition.service.foodb.FooDBDataAPIService
 import com.tomady.nutrition.service.foodb.FooDBRemoteSyncService
 import com.tomady.nutrition.service.gemma.GemmaAndroidService
+import com.tomady.nutrition.service.nutrition.NutritionLookupService
 import com.tomady.nutrition.worker.DailySuggestionWorker
 import fi.iki.elonen.NanoHTTPD
 import kotlinx.coroutines.CoroutineScope
@@ -39,6 +40,10 @@ import java.net.NetworkInterface
  * - `GET /api/v1/foodb/groups` — List food groups
  * - `POST /api/v1/foodb/sync` — Sync the local cache from the configured Postgres instance
  * - `GET  /api/v1/foodb/sync/status` — Poll sync progress/result
+ *
+ * ### Nutrition
+ * - `GET /api/v1/nutrition/macros?food=<name>` — Macro-nutrients for a food by name,
+ *   via the pluggable NutritionLookupService (FooDB has no usable macro data)
  *
  * ### Diet / Profile
  * - `GET  /api/v1/diet/profile/<userId>` — Get user profile
@@ -91,6 +96,7 @@ class TomadyRestApiServer(
     private val dietService: DietAPIService,
     private val gemmaService: GemmaAndroidService,
     private val foodbSyncService: FooDBRemoteSyncService,
+    private val nutritionLookupService: NutritionLookupService,
     private val dietDatabase: DietDatabase,
     private val context: android.content.Context,
     private val port: Int = DEFAULT_PORT,
@@ -167,6 +173,7 @@ class TomadyRestApiServer(
             method == "GET" && uri == "/api/v1/foodb/groups" -> handleFoodGroups()
             method == "POST" && uri == "/api/v1/foodb/sync" -> handleFoodbSync(body)
             method == "GET" && uri == "/api/v1/foodb/sync/status" -> handleFoodbSyncStatus()
+            method == "GET" && uri == "/api/v1/nutrition/macros" -> handleNutritionMacros(params)
 
             // ── Diet / Profile ─────────────────────────────────────
             uri.matches(Regex("/api/v1/diet/profile/(.+)")) -> {
@@ -323,6 +330,20 @@ class TomadyRestApiServer(
             "lastResult" to foodbSyncService.getLastSyncResult(),
             "lastError" to foodbSyncService.getLastSyncError()
         ))
+    }
+
+    /**
+     * Looks up macro-nutrient values (calories/protein/carbs/fat/fiber) for a
+     * food by name, via the active [NutritionLookupService] provider
+     * (currently USDA FoodData Central — see nutrition.provider config).
+     * FooDB does not carry usable macro data, so this is a separate source
+     * joined by food name rather than FooDB's own food id.
+     */
+    private fun handleNutritionMacros(params: Map<String, String>): Response {
+        val food = params["food"] ?: return jsonError(400, "Missing 'food' query parameter")
+        val macros = runBlocking { nutritionLookupService.getMacros(food) }
+            ?: return jsonError(404, "No macro data found for '$food'")
+        return jsonOk(mapOf("macros" to macros))
     }
 
     // ── Diet / Profile ──────────────────────────────────────────────────
@@ -639,6 +660,13 @@ class TomadyRestApiServer(
         val pgPassword = postgres.get("password")
         if (pgPassword != null && !pgPassword.isJsonNull) {
             postgres.addProperty("password", "***redacted***")
+        }
+        val nutrition = obj.getAsJsonObject("nutrition")
+        val usdaApiKey = nutrition.get("usdaApiKey")
+        // DEMO_KEY is USDA's own publicly documented shared key — not a secret,
+        // and worth showing so it's obvious a real key hasn't been set yet.
+        if (usdaApiKey != null && !usdaApiKey.isJsonNull && usdaApiKey.asString != "DEMO_KEY") {
+            nutrition.addProperty("usdaApiKey", "***redacted***")
         }
         return obj
     }

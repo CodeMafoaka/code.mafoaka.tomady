@@ -383,6 +383,47 @@ paths:
                   lastError:
                     type: string
                     nullable: true
+  /api/v1/nutrition/macros:
+    get:
+      summary: Look up macro-nutrients (calories/protein/carbs/fat/fiber) for a food by name
+      description: >
+        FooDB carries almost no usable macro-nutrient data (5.69M `content` rows,
+        only 39 referencing a standard `nutrient` row, none with an actual value —
+        it's a compound/phytochemical composition database, not a macro-nutrition
+        one). This looks it up via a separate, pluggable NutrientDataProvider
+        (currently USDA FoodData Central, see nutrition.provider config), joined
+        by food name rather than FooDB's own food id.
+      tags:
+        - Nutrition
+      parameters:
+        - name: food
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Free-text food name to search for.
+      responses:
+        '200':
+          description: Macro-nutrients for the best-matching food
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  macros:
+                    $ref: '#/components/schemas/FoodMacros'
+        '400':
+          description: Missing 'food' query parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No macro data found for this food
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/gemma/download:
     post:
       summary: Trigger downloading the real Gemma .task model and load it, replacing the mock fallback
@@ -1062,6 +1103,47 @@ components:
         database: "foodb"
         username: "tomady"
         password: "hunter2"
+    NutritionConfig:
+      type: object
+      description: >
+        Selects the pluggable macro-nutrient data source (see FoodMacros /
+        GET /api/v1/nutrition/macros). Only "usda_fdc" is implemented today.
+      properties:
+        provider:
+          type: string
+          default: usda_fdc
+        usdaApiKey:
+          type: string
+          default: DEMO_KEY
+          description: >
+            USDA FoodData Central API key. DEMO_KEY works out of the box but is
+            rate-limited (30 req/hour, 50/day) — get a free instant key at
+            fdc.nal.usda.gov/api-key-signup.html for real usage. Redacted as
+            "***redacted***" in GET/POST responses unless still DEMO_KEY.
+    FoodMacros:
+      type: object
+      properties:
+        source:
+          type: string
+          example: usda_fdc
+        matchedName:
+          type: string
+          description: The provider's own name for the matched food (may differ from the query).
+        calories:
+          type: number
+          nullable: true
+        proteinG:
+          type: number
+          nullable: true
+        carbsG:
+          type: number
+          nullable: true
+        fatG:
+          type: number
+          nullable: true
+        fiberG:
+          type: number
+          nullable: true
     TomadyConfig:
       type: object
       properties:
@@ -1071,6 +1153,8 @@ components:
           $ref: '#/components/schemas/GemmaConfig'
         postgres:
           $ref: '#/components/schemas/PostgresConfig'
+        nutrition:
+          $ref: '#/components/schemas/NutritionConfig'
     ConfigUpdateRequest:
       description: >
         Either a partial TomadyConfig-shaped object (merged recursively into the

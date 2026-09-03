@@ -9,7 +9,8 @@ package com.tomady.nutrition.config
 data class TomadyConfig(
     var server: ServerConfig = ServerConfig(),
     var gemma: GemmaConfig = GemmaConfig(),
-    var postgres: PostgresConfig = PostgresConfig()
+    var postgres: PostgresConfig = PostgresConfig(),
+    var nutrition: NutritionConfig = NutritionConfig()
 )
 
 /**
@@ -58,4 +59,19 @@ data class PostgresConfig(
     var password: String? = null,
     /** One of "disable" | "prefer" | "require" (libpq sslmode values). */
     var sslMode: String = "prefer"
+)
+
+/**
+ * Which [com.tomady.nutrition.service.nutrition.NutrientDataProvider] serves
+ * macro-nutrient (calorie/protein/carb/fat) lookups, and its credentials.
+ * FooDB (see [PostgresConfig]) turned out not to carry usable macro data —
+ * it's a compound/phytochemical composition database — so this is a
+ * separate, pluggable source. Currently only "usda_fdc" is implemented.
+ */
+data class NutritionConfig(
+    var provider: String = "usda_fdc",
+    /** USDA FoodData Central API key. "DEMO_KEY" works out of the box but is
+     * rate-limited (30 req/hour, 50/day) — get a free instant key at
+     * fdc.nal.usda.gov/api-key-signup.html for real usage. */
+    var usdaApiKey: String = "DEMO_KEY"
 )
