@@ -44,6 +44,10 @@ data class DishHistory(
     @ColumnInfo(name = "meal_type")
     val mealType: String? = null,
 
+    /** Time of day the food was eaten, "HH:mm" (e.g. "14:30") — not everyone eats on a fixed meal schedule. */
+    @ColumnInfo(name = "time")
+    val time: String? = null,
+
     @ColumnInfo(name = "servings")
     val servings: Double = 1.0,
 

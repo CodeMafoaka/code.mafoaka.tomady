@@ -95,6 +95,8 @@ class DietDatabase(
     suspend fun getDishHistoryById(id: String): DishHistory? = dishHistoryDao.getById(id)
     suspend fun getDishHistoryByUserAndDate(userId: String, date: String): List<DishHistory> =
         dishHistoryDao.getByUserAndDate(userId, date)
+    suspend fun getRecentDishHistoryByUser(userId: String, limit: Int): List<DishHistory> =
+        dishHistoryDao.getRecentByUser(userId, limit)
     suspend fun getDishHistoryByUserInRange(
         userId: String, startDate: String, endDate: String
     ): List<DishHistory> = dishHistoryDao.getByUserInDateRange(userId, startDate, endDate)

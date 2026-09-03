@@ -1,5 +1,6 @@
 package com.tomady.nutrition.ui.screens
 
+import android.app.TimePickerDialog
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,16 +14,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -35,6 +34,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.tomady.nutrition.data.local.diet.entity.Dish
 import com.tomady.nutrition.data.local.foodb.entity.FoodItem
@@ -46,15 +46,19 @@ import com.tomady.nutrition.ui.rememberTomadyApp
 import com.tomady.nutrition.ui.theme.TomadyColors
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.LocalTime
 
-private val MEAL_TYPES = listOf("Petit-déjeuner", "Déjeuner", "Collation", "Dîner")
+private fun currentTimeHHmm(): String {
+    val now = LocalTime.now()
+    return "%02d:%02d".format(now.hour, now.minute)
+}
 
 /**
  * Full-screen "log what I ate" flow (the hackathon-demoed feature): search
  * across known dishes (real macros already on file) and the FooDB catalogue
  * (macros looked up live via [com.tomady.nutrition.service.nutrition.NutritionLookupService]),
- * or fall back to manual entry for anything not found — e.g. a hamburger
- * that's in neither catalogue.
+ * jump straight back to a recently-eaten dish, or add a brand new
+ * aliment/plat that gets saved to the catalogue for next time.
  */
 @Composable
 fun LogMealScreen(onDone: () -> Unit) {
@@ -65,6 +69,7 @@ fun LogMealScreen(onDone: () -> Unit) {
     var query by remember { mutableStateOf("") }
     var dishResults by remember { mutableStateOf(listOf<Dish>()) }
     var foodResults by remember { mutableStateOf(listOf<FoodItem>()) }
+    var recentDishes by remember { mutableStateOf(listOf<Dish>()) }
 
     var selectedDish by remember { mutableStateOf<Dish?>(null) }
     var selectedFood by remember { mutableStateOf<FoodItem?>(null) }
@@ -73,8 +78,7 @@ fun LogMealScreen(onDone: () -> Unit) {
 
     var servings by remember { mutableStateOf("1") }
     var quantityG by remember { mutableStateOf("100") }
-    var mealType by remember { mutableStateOf(MEAL_TYPES[0]) }
-    var mealTypeExpanded by remember { mutableStateOf(false) }
+    var eatenTime by remember { mutableStateOf(currentTimeHHmm()) }
     var saving by remember { mutableStateOf(false) }
     var showManualEntry by remember { mutableStateOf(false) }
 
@@ -83,6 +87,10 @@ fun LogMealScreen(onDone: () -> Unit) {
     var manualProtein by remember { mutableStateOf("") }
     var manualCarbs by remember { mutableStateOf("") }
     var manualFat by remember { mutableStateOf("") }
+
+    LaunchedEffect(Unit) {
+        recentDishes = app.dietService.getRecentDistinctDishes(CURRENT_USER_ID, limit = 3)
+    }
 
     LaunchedEffect(query) {
         if (query.isBlank()) {
@@ -134,7 +142,7 @@ fun LogMealScreen(onDone: () -> Unit) {
                         userId = CURRENT_USER_ID,
                         dishId = dish.id,
                         date = today,
-                        mealType = mealType,
+                        time = eatenTime,
                         servings = servings.toDoubleOrNull() ?: 1.0,
                         notes = dish.name
                     )
@@ -145,7 +153,6 @@ fun LogMealScreen(onDone: () -> Unit) {
                     val name = food.name ?: query
                     val newDish = app.dietService.createDish(
                         name = name,
-                        category = mealType,
                         calories = macros?.calories?.let { (it * scale).toInt() },
                         proteinGrams = macros?.proteinG?.let { it * scale },
                         carbsGrams = macros?.carbsG?.let { it * scale },
@@ -155,7 +162,7 @@ fun LogMealScreen(onDone: () -> Unit) {
                         userId = CURRENT_USER_ID,
                         dishId = newDish.id,
                         date = today,
-                        mealType = mealType,
+                        time = eatenTime,
                         servings = 1.0,
                         notes = name
                     )
@@ -163,7 +170,6 @@ fun LogMealScreen(onDone: () -> Unit) {
                 showManualEntry -> {
                     val newDish = app.dietService.createDish(
                         name = manualName,
-                        category = mealType,
                         calories = manualKcal.toIntOrNull(),
                         proteinGrams = manualProtein.toDoubleOrNull(),
                         carbsGrams = manualCarbs.toDoubleOrNull(),
@@ -173,7 +179,7 @@ fun LogMealScreen(onDone: () -> Unit) {
                         userId = CURRENT_USER_ID,
                         dishId = newDish.id,
                         date = today,
-                        mealType = mealType,
+                        time = eatenTime,
                         servings = 1.0,
                         notes = manualName
                     )
@@ -221,10 +227,8 @@ fun LogMealScreen(onDone: () -> Unit) {
                     onServingsChange = { servings = it },
                     quantityG = quantityG,
                     onQuantityChange = { quantityG = it },
-                    mealType = mealType,
-                    mealTypeExpanded = mealTypeExpanded,
-                    onMealTypeExpandedChange = { mealTypeExpanded = it },
-                    onMealTypeSelected = { mealType = it; mealTypeExpanded = false },
+                    eatenTime = eatenTime,
+                    onEatenTimeChange = { eatenTime = it },
                     manualName = manualName,
                     onManualNameChange = { manualName = it },
                     manualKcal = manualKcal,
@@ -251,6 +255,45 @@ fun LogMealScreen(onDone: () -> Unit) {
                     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    item {
+                        OutlinedButton(
+                            onClick = { startManualEntry() },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
+                            Text(
+                                if (query.isBlank()) {
+                                    "Ajouter un nouvel aliment / plat"
+                                } else {
+                                    "Ajouter « $query » comme nouvel aliment / plat"
+                                }
+                            )
+                        }
+                    }
+                    if (query.isBlank() && recentDishes.isNotEmpty()) {
+                        item {
+                            Text(
+                                "Récemment mangé",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = TomadyColors.ink,
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                        }
+                        items(recentDishes, key = { "recent-${it.id}" }) { dish ->
+                            SectionCard(modifier = Modifier.clickable { selectDish(dish) }) {
+                                Text(dish.name, style = MaterialTheme.typography.titleSmall, color = TomadyColors.ink)
+                                val macroLine = listOfNotNull(
+                                    dish.calories?.let { "$it kcal" },
+                                    dish.proteinGrams?.let { "P${it.toInt()}g" },
+                                    dish.carbsGrams?.let { "G${it.toInt()}g" },
+                                    dish.fatGrams?.let { "L${it.toInt()}g" }
+                                ).joinToString(" · ")
+                                if (macroLine.isNotEmpty()) {
+                                    Text(macroLine, style = MaterialTheme.typography.bodySmall, color = TomadyColors.muted)
+                                }
+                            }
+                        }
+                    }
                     if (dishResults.isNotEmpty()) {
                         item {
                             Text(
@@ -298,23 +341,12 @@ fun LogMealScreen(onDone: () -> Unit) {
                             }
                         }
                     }
-                    if (query.isNotBlank()) {
-                        item {
-                            TextButton(
-                                onClick = { startManualEntry() },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("Aucun résultat ? Ajouter « $query » manuellement")
-                            }
-                        }
-                    }
                 }
             }
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SelectionDetail(
     dish: Dish?,
@@ -326,10 +358,8 @@ private fun SelectionDetail(
     onServingsChange: (String) -> Unit,
     quantityG: String,
     onQuantityChange: (String) -> Unit,
-    mealType: String,
-    mealTypeExpanded: Boolean,
-    onMealTypeExpandedChange: (Boolean) -> Unit,
-    onMealTypeSelected: (String) -> Unit,
+    eatenTime: String,
+    onEatenTimeChange: (String) -> Unit,
     manualName: String,
     onManualNameChange: (String) -> Unit,
     manualKcal: String,
@@ -345,6 +375,8 @@ private fun SelectionDetail(
     onCancel: () -> Unit,
     onSave: () -> Unit
 ) {
+    val context = LocalContext.current
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -450,29 +482,29 @@ private fun SelectionDetail(
         }
 
         SectionCard {
-            ExposedDropdownMenuBox(
-                expanded = mealTypeExpanded,
-                onExpandedChange = onMealTypeExpandedChange
+            Text(
+                "Heure du repas",
+                style = MaterialTheme.typography.titleSmall,
+                color = TomadyColors.ink,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+            OutlinedButton(
+                onClick = {
+                    val parts = eatenTime.split(":")
+                    val initialHour = parts.getOrNull(0)?.toIntOrNull() ?: 12
+                    val initialMinute = parts.getOrNull(1)?.toIntOrNull() ?: 0
+                    TimePickerDialog(
+                        context,
+                        { _, hour, minute -> onEatenTimeChange("%02d:%02d".format(hour, minute)) },
+                        initialHour,
+                        initialMinute,
+                        true
+                    ).show()
+                },
+                modifier = Modifier.fillMaxWidth()
             ) {
-                OutlinedTextField(
-                    value = mealType,
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Type de repas") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = mealTypeExpanded) },
-                    modifier = Modifier.menuAnchor().fillMaxWidth()
-                )
-                DropdownMenu(
-                    expanded = mealTypeExpanded,
-                    onDismissRequest = { onMealTypeExpandedChange(false) }
-                ) {
-                    MEAL_TYPES.forEach { option ->
-                        DropdownMenuItem(
-                            text = { Text(option) },
-                            onClick = { onMealTypeSelected(option) }
-                        )
-                    }
-                }
+                Icon(Icons.Filled.Schedule, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
+                Text(eatenTime)
             }
         }
 

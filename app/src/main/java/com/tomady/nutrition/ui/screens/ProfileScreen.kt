@@ -1,8 +1,10 @@
 package com.tomady.nutrition.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -12,6 +14,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -22,18 +25,24 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.tomady.nutrition.config.ConfigManager
 import com.tomady.nutrition.data.local.diet.entity.Profile
 import com.tomady.nutrition.ui.components.SectionCard
 import com.tomady.nutrition.ui.components.TomadyTopBar
 import com.tomady.nutrition.ui.ensureDefaultProfile
 import com.tomady.nutrition.ui.rememberTomadyApp
+import com.tomady.nutrition.ui.theme.ThemeManager
 import com.tomady.nutrition.ui.theme.TomadyColors
 import kotlinx.coroutines.launch
+
+private val THEME_LABELS = mapOf("light" to "Clair", "night" to "Nuit")
 
 @Composable
 fun ProfileScreen() {
     val app = rememberTomadyApp()
+    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
     var profile by remember { mutableStateOf<Profile?>(null) }
@@ -135,6 +144,44 @@ fun ProfileScreen() {
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(if (saving) "Enregistrement…" else "Enregistrer")
+            }
+
+            SectionCard {
+                Text(
+                    "Thème",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = TomadyColors.ink,
+                    modifier = Modifier.padding(bottom = 6.dp)
+                )
+                fun selectTheme(name: String) {
+                    TomadyColors.applyTheme(ThemeManager.load(context, name))
+                    coroutineScope.launch {
+                        ConfigManager(context).update(
+                            com.google.gson.JsonParser.parseString("""{"ui":{"theme":"$name"}}""").asJsonObject
+                        )
+                    }
+                }
+
+                ThemeManager.availableThemes.forEach { name ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { selectTheme(name) }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = TomadyColors.themeName == name,
+                            onClick = { selectTheme(name) }
+                        )
+                        Text(
+                            THEME_LABELS[name] ?: name,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TomadyColors.ink,
+                            modifier = Modifier.padding(start = 4.dp)
+                        )
+                    }
+                }
             }
 
             SectionCard {

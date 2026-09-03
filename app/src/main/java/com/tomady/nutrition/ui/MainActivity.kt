@@ -33,8 +33,10 @@ import com.tomady.nutrition.ui.screens.FoodDetailScreen
 import com.tomady.nutrition.ui.screens.JournalScreen
 import com.tomady.nutrition.ui.screens.LogMealScreen
 import com.tomady.nutrition.ui.screens.ProfileScreen
+import com.tomady.nutrition.ui.theme.ThemeManager
 import com.tomady.nutrition.ui.theme.TomadyColors
 import com.tomady.nutrition.ui.theme.TomadyTheme
+import com.tomady.nutrition.config.ConfigManager
 
 /**
  * Entry point for the native Tomady UI. Lives in the same process as the
@@ -68,6 +70,9 @@ fun TomadyApp() {
     // doesn't exist yet (that throws an uncaught SQLiteConstraintException
     // that crashes the whole app).
     LaunchedEffect(Unit) {
+        val context = app.applicationContext
+        val savedTheme = ConfigManager(context).get().ui.theme
+        TomadyColors.applyTheme(ThemeManager.load(context, savedTheme))
         ensureDefaultProfile(app)
         bootstrapped = true
     }

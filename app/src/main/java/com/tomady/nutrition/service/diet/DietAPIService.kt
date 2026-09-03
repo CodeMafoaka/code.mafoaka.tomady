@@ -315,13 +315,19 @@ class DietAPIService(
     /**
      * Logs a meal (dish consumption) for a user.
      *
+     * @param time Time of day it was eaten, "HH:mm" — not every user eats on a
+     * fixed meal schedule, so this is tracked instead of/alongside [mealType].
+     * When [mealType] isn't given but [time] is, a bucket label is derived
+     * from it so grouping (daily summary, dashboard) still has something to
+     * group by.
      * @return The created [DishHistory] entry.
      */
     suspend fun logMealConsumption(
         userId: String,
         dishId: String?,
         date: String,
-        mealType: String?,
+        mealType: String? = null,
+        time: String? = null,
         servings: Double = 1.0,
         notes: String? = null
     ): DishHistory = withContext(Dispatchers.IO) {
@@ -330,7 +336,8 @@ class DietAPIService(
             userId = userId,
             dishId = dishId,
             date = date,
-            mealType = mealType,
+            mealType = mealType ?: time?.let { mealTypeBucketForTime(it) },
+            time = time,
             servings = servings,
             notes = notes
         )
@@ -338,11 +345,36 @@ class DietAPIService(
         history
     }
 
+    /** Buckets a "HH:mm" time into a coarse meal-type label for grouping/display. */
+    private fun mealTypeBucketForTime(time: String): String {
+        val hour = time.substringBefore(":").toIntOrNull() ?: return "Repas"
+        return when (hour) {
+            in 5..10 -> "Petit-déjeuner"
+            in 11..14 -> "Déjeuner"
+            in 15..18 -> "Collation"
+            else -> "Dîner"
+        }
+    }
+
     /**
      * Retrieves meal history for a user on a specific date.
      */
     suspend fun getDishHistoryByDate(userId: String, date: String): List<DishHistory> = withContext(Dispatchers.IO) {
         dietDatabase.getDishHistoryByUserAndDate(userId, date)
+    }
+
+    /**
+     * Returns the [limit] most recently eaten distinct dishes for a user
+     * (most recent first), for quick re-logging without typing a search.
+     */
+    suspend fun getRecentDistinctDishes(userId: String, limit: Int = 3): List<Dish> = withContext(Dispatchers.IO) {
+        val recentEntries = dietDatabase.getRecentDishHistoryByUser(userId, limit * 5)
+        val seenDishIds = LinkedHashSet<String>()
+        for (entry in recentEntries) {
+            entry.dishId?.let { seenDishIds.add(it) }
+            if (seenDishIds.size >= limit) break
+        }
+        seenDishIds.mapNotNull { dietDatabase.getDishById(it) }
     }
 
     /**

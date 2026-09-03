@@ -458,6 +458,7 @@ class TomadyRestApiServer(
                 dishId = json.get("dishId")?.asString,
                 date = date,
                 mealType = json.get("mealType")?.asString,
+                time = json.get("time")?.asString,
                 servings = json.get("servings")?.asDouble ?: 1.0,
                 notes = json.get("notes")?.asString
             )

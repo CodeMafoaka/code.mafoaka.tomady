@@ -36,6 +36,9 @@ interface DishHistoryDao {
     @Query("SELECT * FROM dish_history WHERE user_id = :userId AND date = :date ORDER BY created_at ASC")
     suspend fun getByUserAndDate(userId: String, date: String): List<DishHistory>
 
+    @Query("SELECT * FROM dish_history WHERE user_id = :userId AND dish_id IS NOT NULL ORDER BY created_at DESC LIMIT :limit")
+    suspend fun getRecentByUser(userId: String, limit: Int): List<DishHistory>
+
     @Query("SELECT * FROM dish_history WHERE user_id = :userId AND date BETWEEN :startDate AND :endDate ORDER BY date ASC")
     suspend fun getByUserInDateRange(userId: String, startDate: String, endDate: String): List<DishHistory>
 

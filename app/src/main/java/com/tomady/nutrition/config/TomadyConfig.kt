@@ -10,7 +10,17 @@ data class TomadyConfig(
     var server: ServerConfig = ServerConfig(),
     var gemma: GemmaConfig = GemmaConfig(),
     var postgres: PostgresConfig = PostgresConfig(),
-    var nutrition: NutritionConfig = NutritionConfig()
+    var nutrition: NutritionConfig = NutritionConfig(),
+    var ui: UiConfig = UiConfig()
+)
+
+/**
+ * @param theme Name of the selected theme, matching a JSON file under
+ * `assets/themes/<theme>.json` (see `com.tomady.nutrition.ui.theme.ThemeManager`).
+ * Only "light" and "night" ship today.
+ */
+data class UiConfig(
+    var theme: String = "light"
 )
 
 /**
