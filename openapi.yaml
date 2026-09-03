@@ -316,6 +316,73 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/foodb/sync:
+    post:
+      summary: Sync the local FooDB cache from the configured Postgres instance
+      description: >
+        Requires postgres.host/database/username to already be set via POST /api/v1/config.
+        Runs in the background — poll GET /api/v1/foodb/sync/status for progress. Pass
+        {"forceRefresh": true} to clear the local cache before importing, recommended for
+        the very first sync since the bootstrap seed data's IDs could otherwise collide
+        with real Postgres IDs.
+      tags:
+        - FooDB
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                forceRefresh:
+                  type: boolean
+                  default: false
+      responses:
+        '200':
+          description: Sync started (or already in progress)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [started, already_in_progress]
+                  forceRefresh:
+                    type: boolean
+        '400':
+          description: Postgres not configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/foodb/sync/status:
+    get:
+      summary: Poll FooDB Postgres sync progress/result
+      tags:
+        - FooDB
+      responses:
+        '200':
+          description: Current sync state
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  configured:
+                    type: boolean
+                  syncing:
+                    type: boolean
+                  progress:
+                    type: number
+                    format: float
+                    nullable: true
+                  lastResult:
+                    type: string
+                    nullable: true
+                  lastError:
+                    type: string
+                    nullable: true
   /api/v1/gemma/download:
     post:
       summary: Trigger downloading the real Gemma .task model and load it, replacing the mock fallback
@@ -964,6 +1031,37 @@ components:
         modelFileName: "gemma3-1b-it-int4.task"
         modelDownloadUrl: "https://huggingface.co/litert-community/Gemma3-1B-IT/resolve/main/gemma3-1b-it-int4.task?download=true"
         huggingfaceToken: "hf_xxx"
+    PostgresConfig:
+      type: object
+      description: >
+        Connection details for the remote Postgres instance holding the full
+        FooDB dataset. Set these, then POST /api/v1/foodb/sync.
+      properties:
+        host:
+          type: string
+          nullable: true
+        port:
+          type: integer
+          default: 5432
+        database:
+          type: string
+          nullable: true
+        username:
+          type: string
+          nullable: true
+        password:
+          type: string
+          nullable: true
+          description: Redacted as "***redacted***" in GET/POST responses.
+        sslMode:
+          type: string
+          default: prefer
+          description: One of "disable" | "prefer" | "require" (libpq sslmode values).
+      example:
+        host: "db.example.com"
+        database: "foodb"
+        username: "tomady"
+        password: "hunter2"
     TomadyConfig:
       type: object
       properties:
@@ -971,6 +1069,8 @@ components:
           $ref: '#/components/schemas/ServerConfig'
         gemma:
           $ref: '#/components/schemas/GemmaConfig'
+        postgres:
+          $ref: '#/components/schemas/PostgresConfig'
     ConfigUpdateRequest:
       description: >
         Either a partial TomadyConfig-shaped object (merged recursively into the

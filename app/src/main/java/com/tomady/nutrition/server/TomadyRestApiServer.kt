@@ -9,6 +9,7 @@ import com.tomady.nutrition.config.TomadyConfig
 import com.tomady.nutrition.data.local.diet.DietDatabase
 import com.tomady.nutrition.service.diet.DietAPIService
 import com.tomady.nutrition.service.foodb.FooDBDataAPIService
+import com.tomady.nutrition.service.foodb.FooDBRemoteSyncService
 import com.tomady.nutrition.service.gemma.GemmaAndroidService
 import com.tomady.nutrition.worker.DailySuggestionWorker
 import fi.iki.elonen.NanoHTTPD
@@ -32,10 +33,12 @@ import java.net.NetworkInterface
  * - `GET /api/v1/health` — Service health check
  *
  * ### FooDB
- * - `GET /api/v1/foodb/search?q=<query>` — Search foods
+ * - `GET /api/v1/foodb/search?q=<query>` — Search foods (local cache only)
  * - `GET /api/v1/foodb/food/<id>` — Get food details (cache-first)
  * - `GET /api/v1/foodb/food/<id>/nutrients` — Get nutrients for a food
  * - `GET /api/v1/foodb/groups` — List food groups
+ * - `POST /api/v1/foodb/sync` — Sync the local cache from the configured Postgres instance
+ * - `GET  /api/v1/foodb/sync/status` — Poll sync progress/result
  *
  * ### Diet / Profile
  * - `GET  /api/v1/diet/profile/<userId>` — Get user profile
@@ -87,6 +90,7 @@ class TomadyRestApiServer(
     private val foodbService: FooDBDataAPIService,
     private val dietService: DietAPIService,
     private val gemmaService: GemmaAndroidService,
+    private val foodbSyncService: FooDBRemoteSyncService,
     private val dietDatabase: DietDatabase,
     private val context: android.content.Context,
     private val port: Int = DEFAULT_PORT,
@@ -161,6 +165,8 @@ class TomadyRestApiServer(
                 handleFoodDetails(id)
             }
             method == "GET" && uri == "/api/v1/foodb/groups" -> handleFoodGroups()
+            method == "POST" && uri == "/api/v1/foodb/sync" -> handleFoodbSync(body)
+            method == "GET" && uri == "/api/v1/foodb/sync/status" -> handleFoodbSyncStatus()
 
             // ── Diet / Profile ─────────────────────────────────────
             uri.matches(Regex("/api/v1/diet/profile/(.+)")) -> {
@@ -273,6 +279,50 @@ class TomadyRestApiServer(
     private fun handleFoodGroups(): Response {
         val groups = runBlocking { foodbService.getFoodGroups() }
         return jsonOk(mapOf("groups" to groups))
+    }
+
+    /**
+     * Triggers a background sync of the local FooDB cache from the Postgres
+     * instance configured via `POST /api/v1/config` (`postgres.*`). Runs in
+     * the background; poll `GET /api/v1/foodb/sync/status` for progress.
+     *
+     * Body (optional): `{"forceRefresh": true}` to clear the local cache
+     * before importing — recommended for the very first sync, since the
+     * bootstrap seed data's IDs could otherwise collide with real ones.
+     */
+    private fun handleFoodbSync(body: String?): Response {
+        if (!foodbSyncService.isConfigured()) {
+            return jsonError(
+                400,
+                "Postgres not configured — set postgres.host/database/username via POST /api/v1/config first"
+            )
+        }
+        if (foodbSyncService.isSyncInProgress()) {
+            return jsonOk(mapOf("status" to "already_in_progress"))
+        }
+
+        val forceRefresh = body?.let { tryParseJson(it)?.get("forceRefresh")?.asBoolean } ?: false
+
+        scope.launch {
+            val success = foodbSyncService.syncFromPostgres(forceRefresh)
+            if (success) {
+                android.util.Log.i(TAG, "FooDB Postgres sync complete: ${foodbSyncService.getLastSyncResult()}")
+            } else {
+                android.util.Log.e(TAG, "FooDB Postgres sync failed: ${foodbSyncService.getLastSyncError()}")
+            }
+        }
+
+        return jsonOk(mapOf("status" to "started", "forceRefresh" to forceRefresh))
+    }
+
+    private fun handleFoodbSyncStatus(): Response {
+        return jsonOk(mapOf(
+            "configured" to foodbSyncService.isConfigured(),
+            "syncing" to foodbSyncService.isSyncInProgress(),
+            "progress" to foodbSyncService.getSyncProgress(),
+            "lastResult" to foodbSyncService.getLastSyncResult(),
+            "lastError" to foodbSyncService.getLastSyncError()
+        ))
     }
 
     // ── Diet / Profile ──────────────────────────────────────────────────
@@ -584,6 +634,11 @@ class TomadyRestApiServer(
             if (value != null && !value.isJsonNull) {
                 gemma.addProperty(secretField, "***redacted***")
             }
+        }
+        val postgres = obj.getAsJsonObject("postgres")
+        val pgPassword = postgres.get("password")
+        if (pgPassword != null && !pgPassword.isJsonNull) {
+            postgres.addProperty("password", "***redacted***")
         }
         return obj
     }

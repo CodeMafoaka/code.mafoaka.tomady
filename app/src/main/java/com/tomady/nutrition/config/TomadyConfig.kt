@@ -8,7 +8,8 @@ package com.tomady.nutrition.config
  */
 data class TomadyConfig(
     var server: ServerConfig = ServerConfig(),
-    var gemma: GemmaConfig = GemmaConfig()
+    var gemma: GemmaConfig = GemmaConfig(),
+    var postgres: PostgresConfig = PostgresConfig()
 )
 
 /**
@@ -40,4 +41,21 @@ data class GemmaConfig(
     var kaggleApiKey: String? = null,
     var huggingfaceToken: String? = null,
     var maxTokens: Int = 1024
+)
+
+/**
+ * Connection details for the remote PostgreSQL instance holding the full
+ * FooDB dataset (same table shape as `init_ressources/foodb_generated_schema_only.sql`,
+ * hosted on Postgres instead of embedded SQLite). Set via `POST /api/v1/config`,
+ * then trigger `POST /api/v1/foodb/sync` to pull `food`/`content`/`nutrient`
+ * rows into the local Room cache — see FooDBRemoteSyncService.
+ */
+data class PostgresConfig(
+    var host: String? = null,
+    var port: Int = 5432,
+    var database: String? = null,
+    var username: String? = null,
+    var password: String? = null,
+    /** One of "disable" | "prefer" | "require" (libpq sslmode values). */
+    var sslMode: String = "prefer"
 )

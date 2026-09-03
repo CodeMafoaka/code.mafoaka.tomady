@@ -90,6 +90,10 @@ dependencies {
     // NanoHTTPd — embedded HTTP server for local-network REST API
     implementation("org.nanohttpd:nanohttpd:2.3.1")
 
+    // PostgreSQL JDBC driver — syncs the local FooDB cache from a remote
+    // Postgres instance holding the full dataset (see FooDBRemoteSyncService).
+    implementation("org.postgresql:postgresql:42.7.3")
+
     // MediaPipe LLM Inference — Gemma 4 on-device
     implementation("com.google.mediapipe:tasks-genai:0.10.33")
 

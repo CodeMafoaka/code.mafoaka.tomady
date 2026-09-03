@@ -11,14 +11,19 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.tomady.nutrition.config.ConfigManager
 import com.tomady.nutrition.data.AppDatabase
+import com.tomady.nutrition.data.SeedDataCallback
 import com.tomady.nutrition.data.local.diet.DietDatabase
 import com.tomady.nutrition.data.local.foodb.FooDBLocalDatabase
 import com.tomady.nutrition.server.TomadyRestApiServer
 import com.tomady.nutrition.server.TomadyServerService
 import com.tomady.nutrition.service.diet.DietAPIService
 import com.tomady.nutrition.service.foodb.FooDBDataAPIService
+import com.tomady.nutrition.service.foodb.FooDBRemoteSyncService
 import com.tomady.nutrition.service.gemma.GemmaAndroidService
 import com.tomady.nutrition.worker.DailySuggestionWorker
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 
 /**
@@ -58,6 +63,10 @@ class TomadyApp : Application() {
 
     /** Gemma on-device LLM service. */
     lateinit var gemmaService: GemmaAndroidService
+        private set
+
+    /** Syncs the local FooDB cache from a remote Postgres instance, if configured. */
+    lateinit var foodbSyncService: FooDBRemoteSyncService
         private set
 
     /** Embedded REST API server for local-network access. */
@@ -139,6 +148,19 @@ class TomadyApp : Application() {
             dietService = dietService,
             foodbService = foodbService
         )
+        foodbSyncService = FooDBRemoteSyncService(
+            localDatabase = foodbLocal,
+            configManager = ConfigManager(this)
+        )
+
+        // 4. Bootstrap: if nothing has ever populated the local FooDB cache
+        // (no Postgres sync configured/run yet), seed a small set of known
+        // foods so search/catalogue isn't just empty on first install.
+        CoroutineScope(Dispatchers.IO).launch {
+            if (foodbLocal.searchFood("").isEmpty()) {
+                SeedDataCallback().seedDatabase(database)
+            }
+        }
     }
 
     /**
@@ -161,6 +183,7 @@ class TomadyApp : Application() {
             foodbService = foodbService,
             dietService = dietService,
             gemmaService = gemmaService,
+            foodbSyncService = foodbSyncService,
             dietDatabase = dietDatabase,
             context = this,
             port = configuredPort
