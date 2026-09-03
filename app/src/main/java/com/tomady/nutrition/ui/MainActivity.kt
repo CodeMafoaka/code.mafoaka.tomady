@@ -31,6 +31,7 @@ import com.tomady.nutrition.ui.screens.CatalogueScreen
 import com.tomady.nutrition.ui.screens.DashboardScreen
 import com.tomady.nutrition.ui.screens.FoodDetailScreen
 import com.tomady.nutrition.ui.screens.JournalScreen
+import com.tomady.nutrition.ui.screens.LogMealScreen
 import com.tomady.nutrition.ui.screens.ProfileScreen
 import com.tomady.nutrition.ui.theme.TomadyColors
 import com.tomady.nutrition.ui.theme.TomadyTheme
@@ -79,6 +80,7 @@ fun TomadyApp() {
     }
 
     val navController: NavHostController = rememberNavController()
+    var journalRefreshKey by remember { mutableStateOf(0) }
 
     Scaffold(
         bottomBar = {
@@ -105,7 +107,18 @@ fun TomadyApp() {
                 modifier = Modifier.fillMaxSize()
             ) {
                 composable("dashboard") { DashboardScreen() }
-                composable("journal") { JournalScreen() }
+                composable("journal") {
+                    JournalScreen(
+                        onAddMeal = { navController.navigate("logMeal") },
+                        refreshKey = journalRefreshKey
+                    )
+                }
+                composable("logMeal") {
+                    LogMealScreen(onDone = {
+                        journalRefreshKey++
+                        navController.popBackStack()
+                    })
+                }
                 composable("catalogue") {
                     CatalogueScreen(onOpenFood = { foodId ->
                         navController.navigate("foodDetail/$foodId")
