@@ -13,7 +13,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,6 +28,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.tomady.nutrition.config.ConfigManager
 import com.tomady.nutrition.data.local.diet.entity.Profile
+import com.tomady.nutrition.ui.components.ProfileField
 import com.tomady.nutrition.ui.components.SectionCard
 import com.tomady.nutrition.ui.components.TomadyTopBar
 import com.tomady.nutrition.ui.ensureDefaultProfile
@@ -37,7 +37,7 @@ import com.tomady.nutrition.ui.theme.ThemeManager
 import com.tomady.nutrition.ui.theme.TomadyColors
 import kotlinx.coroutines.launch
 
-private val THEME_LABELS = mapOf("light" to "Clair", "night" to "Nuit")
+private val THEME_LABELS = mapOf("light" to "Clair", "night" to "Nuit", "encre" to "Encre")
 
 @Composable
 fun ProfileScreen() {
@@ -83,44 +83,15 @@ fun ProfileScreen() {
                 .padding(horizontal = 20.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            SectionCard {
-                Text(
-                    "Informations",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = TomadyColors.ink,
-                    modifier = Modifier.padding(bottom = 10.dp)
-                )
-                OutlinedTextField(
-                    value = displayName,
-                    onValueChange = { displayName = it },
-                    label = { Text("Nom") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = goal,
-                    onValueChange = { goal = it },
-                    label = { Text("Objectif") },
-                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
-                )
-                OutlinedTextField(
-                    value = calorieTarget,
-                    onValueChange = { calorieTarget = it },
-                    label = { Text("Objectif calorique (kcal)") },
-                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
-                )
-                OutlinedTextField(
-                    value = heightCm,
-                    onValueChange = { heightCm = it },
-                    label = { Text("Taille (cm)") },
-                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
-                )
-                OutlinedTextField(
-                    value = weightKg,
-                    onValueChange = { weightKg = it },
-                    label = { Text("Poids (kg)") },
-                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
-                )
-            }
+            ProfileField(label = "Nom", value = displayName, onValueChange = { displayName = it })
+            ProfileField(label = "Objectif", value = goal, onValueChange = { goal = it })
+            ProfileField(
+                label = "Objectif calorique",
+                value = calorieTarget,
+                onValueChange = { calorieTarget = it }
+            )
+            ProfileField(label = "Taille", value = heightCm, onValueChange = { heightCm = it })
+            ProfileField(label = "Poids", value = weightKg, onValueChange = { weightKg = it })
 
             Button(
                 onClick = {

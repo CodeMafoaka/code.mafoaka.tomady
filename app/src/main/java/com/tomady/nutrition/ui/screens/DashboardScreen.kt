@@ -2,9 +2,10 @@ package com.tomady.nutrition.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -24,9 +25,9 @@ import com.tomady.nutrition.data.local.diet.entity.Profile
 import com.tomady.nutrition.service.diet.DailySummary
 import com.tomady.nutrition.service.diet.DailyTargets
 import com.tomady.nutrition.ui.CURRENT_USER_ID
+import com.tomady.nutrition.ui.components.HeroStat
 import com.tomady.nutrition.ui.components.MacroProgressRow
 import com.tomady.nutrition.ui.components.SectionCard
-import com.tomady.nutrition.ui.components.TomadyTopBar
 import com.tomady.nutrition.ui.ensureDefaultProfile
 import com.tomady.nutrition.ui.rememberTomadyApp
 import com.tomady.nutrition.ui.theme.TomadyColors
@@ -54,84 +55,95 @@ fun DashboardScreen() {
         loading = false
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        TomadyTopBar(title = "Bonjour, ${profile?.displayName ?: "…"} 👋")
-
-        if (loading) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = TomadyColors.green)
-            }
-            return
+    if (loading) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = TomadyColors.green)
         }
+        return
+    }
 
-        val t = targets ?: DailyTargets(2000, 120, 220, 65)
-        val consumedCalories = summary?.totalCalories?.toInt() ?: 0
-        val consumedProtein = summary?.totalProteinG?.toInt() ?: 0
-        val consumedCarbs = summary?.totalCarbsG?.toInt() ?: 0
-        val consumedFat = summary?.totalFatG?.toInt() ?: 0
+    val t = targets ?: DailyTargets(2000, 120, 220, 65)
+    val consumedCalories = summary?.totalCalories?.toInt() ?: 0
+    val consumedProtein = summary?.totalProteinG?.toInt() ?: 0
+    val consumedCarbs = summary?.totalCarbsG?.toInt() ?: 0
+    val consumedFat = summary?.totalFatG?.toInt() ?: 0
+    val remainingCalories = (t.calories - consumedCalories).coerceAtLeast(0)
+    val consumedPct = if (t.calories > 0) consumedCalories.toFloat() / t.calories.toFloat() else 0f
 
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            item {
-                SectionCard {
-                    Text("Calories aujourd'hui", style = MaterialTheme.typography.bodySmall, color = TomadyColors.muted)
-                    Text(
-                        "$consumedCalories kcal",
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = TomadyColors.ink
-                    )
-                    Text(
-                        "Objectif : ${t.calories} kcal",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TomadyColors.muted
-                    )
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(0.dp)
+    ) {
+        item {
+            Text(
+                "Bonjour,",
+                style = MaterialTheme.typography.bodyMedium,
+                color = TomadyColors.muted
+            )
+            Text(
+                "${profile?.displayName ?: "…"} 👋",
+                style = MaterialTheme.typography.headlineSmall,
+                color = TomadyColors.ink,
+                modifier = Modifier.padding(top = 2.dp, bottom = 26.dp)
+            )
+            HeroStat(
+                value = "$remainingCalories",
+                caption = "kcal restantes sur ${t.calories}",
+                progress = consumedPct,
+                modifier = Modifier.padding(bottom = 26.dp)
+            )
+            SectionCard {
+                MacroProgressRow("Protéines", consumedProtein, t.proteinG, TomadyColors.green)
+                Box(modifier = Modifier.padding(top = 16.dp)) {
+                    MacroProgressRow("Glucides", consumedCarbs, t.carbsG, TomadyColors.amber)
+                }
+                Box(modifier = Modifier.padding(top = 16.dp)) {
+                    MacroProgressRow("Lipides", consumedFat, t.fatG, TomadyColors.coral)
                 }
             }
+        }
+        if (summary == null) {
             item {
-                SectionCard {
-                    Text(
-                        "Macronutriments",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = TomadyColors.ink,
-                        modifier = Modifier.padding(bottom = 12.dp)
-                    )
-                    MacroProgressRow("Protéines", consumedProtein, t.proteinG, TomadyColors.green)
-                    Box(modifier = Modifier.padding(top = 12.dp)) {
-                        MacroProgressRow("Glucides", consumedCarbs, t.carbsG, TomadyColors.amber)
-                    }
-                    Box(modifier = Modifier.padding(top = 12.dp)) {
-                        MacroProgressRow("Lipides", consumedFat, t.fatG, TomadyColors.blue)
-                    }
-                }
+                Text(
+                    "Aucun repas enregistré aujourd'hui — direction l'onglet Journal pour en ajouter un.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TomadyColors.muted,
+                    modifier = Modifier.padding(top = 26.dp)
+                )
             }
-            if (summary == null) {
-                item {
-                    Text(
-                        "Aucun repas enregistré aujourd'hui — direction l'onglet Journal pour en ajouter un.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TomadyColors.muted
-                    )
-                }
-            } else {
-                item {
-                    Text(
-                        "Répartition par repas",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = TomadyColors.ink
-                    )
-                }
-                items(summary!!.meals) { meal ->
-                    SectionCard {
-                        Text(meal.mealType, style = MaterialTheme.typography.titleSmall, color = TomadyColors.ink)
+        } else {
+            item {
+                Text(
+                    "Répartition par repas",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = TomadyColors.ink,
+                    modifier = Modifier.padding(top = 28.dp, bottom = 12.dp)
+                )
+            }
+            items(summary!!.meals) { meal ->
+                SectionCard(modifier = Modifier.padding(bottom = 11.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
                         Text(
-                            "${meal.totalCalories.toInt()} kcal · P${meal.totalProteinG.toInt()} · G${meal.totalCarbsG.toInt()} · L${meal.totalFatG.toInt()}",
+                            meal.mealType,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = TomadyColors.ink
+                        )
+                        Text(
+                            "${meal.totalCalories.toInt()} kcal",
                             style = MaterialTheme.typography.bodySmall,
                             color = TomadyColors.muted
                         )
                     }
+                    Text(
+                        "P ${meal.totalProteinG.toInt()} · G ${meal.totalCarbsG.toInt()} · L ${meal.totalFatG.toInt()}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TomadyColors.muted,
+                        modifier = Modifier.padding(top = 6.dp)
+                    )
                 }
             }
         }

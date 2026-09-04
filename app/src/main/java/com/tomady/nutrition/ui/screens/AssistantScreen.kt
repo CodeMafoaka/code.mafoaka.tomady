@@ -1,25 +1,28 @@
 package com.tomady.nutrition.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -32,8 +35,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.tomady.nutrition.ui.CURRENT_USER_ID
 import com.tomady.nutrition.ui.components.AiStatusPillPresets
-import com.tomady.nutrition.ui.components.SectionCard
+import com.tomady.nutrition.ui.components.ChatBubble
+import com.tomady.nutrition.ui.components.TomadyFieldShape
 import com.tomady.nutrition.ui.components.TomadyTopBar
+import com.tomady.nutrition.ui.components.tomadyFieldColors
 import com.tomady.nutrition.ui.rememberTomadyApp
 import com.tomady.nutrition.ui.theme.TomadyColors
 import kotlinx.coroutines.delay
@@ -137,19 +142,7 @@ fun AssistantScreen() {
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 items(messages) { msg ->
-                    SectionCard {
-                        Text(
-                            if (msg.from == "user") "Vous" else "Tomady",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = if (msg.from == "user") TomadyColors.ink else TomadyColors.violetDeep
-                        )
-                        Text(
-                            msg.text,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = TomadyColors.inkSoft,
-                            modifier = Modifier.padding(top = 4.dp)
-                        )
-                    }
+                    ChatBubble(text = msg.text, isUser = msg.from == "user")
                 }
             }
 
@@ -162,12 +155,22 @@ fun AssistantScreen() {
                 OutlinedTextField(
                     value = input,
                     onValueChange = { input = it },
-                    placeholder = { Text("Écrire un message…") },
+                    placeholder = { Text("Posez votre question…") },
+                    shape = TomadyFieldShape,
+                    colors = tomadyFieldColors(),
                     modifier = Modifier.weight(1f),
                     singleLine = true
                 )
-                IconButton(onClick = ::send, enabled = !sending && input.isNotBlank()) {
-                    Icon(Icons.Filled.Send, contentDescription = "Envoyer", tint = TomadyColors.violet)
+                Box(
+                    modifier = Modifier
+                        .padding(start = 10.dp)
+                        .size(48.dp)
+                        .background(TomadyColors.line, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    IconButton(onClick = ::send, enabled = !sending && input.isNotBlank()) {
+                        Icon(Icons.Filled.ArrowUpward, contentDescription = "Envoyer", tint = TomadyColors.ink)
+                    }
                 }
             }
         }

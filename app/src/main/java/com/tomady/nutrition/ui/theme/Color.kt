@@ -47,7 +47,7 @@ object TomadyColors {
     /** Applies a freshly-loaded [ThemeColorSet], updating every token in place. */
     fun applyTheme(t: ThemeColorSet) {
         themeName = t.name
-        isNight = t.name == "night"
+        isNight = t.name != "light"
         green = t.green
         greenDeep = t.greenDeep
         greenTint = t.greenTint

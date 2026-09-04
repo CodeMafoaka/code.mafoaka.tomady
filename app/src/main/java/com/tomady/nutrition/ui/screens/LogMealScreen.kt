@@ -1,6 +1,8 @@
 package com.tomady.nutrition.ui.screens
 
 import android.app.TimePickerDialog
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,8 +13,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -40,14 +42,19 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.tomady.nutrition.data.local.diet.entity.Dish
 import com.tomady.nutrition.data.local.foodb.entity.FoodItem
 import com.tomady.nutrition.service.nutrition.FoodMacros
 import com.tomady.nutrition.ui.CURRENT_USER_ID
+import com.tomady.nutrition.ui.components.ListRow
+import com.tomady.nutrition.ui.components.PillSearchField
 import com.tomady.nutrition.ui.components.SectionCard
+import com.tomady.nutrition.ui.components.TomadyFieldShape
 import com.tomady.nutrition.ui.components.TomadyTopBar
+import com.tomady.nutrition.ui.components.tomadyFieldColors
 import com.tomady.nutrition.ui.rememberTomadyApp
 import com.tomady.nutrition.ui.theme.TomadyColors
 import kotlinx.coroutines.launch
@@ -258,7 +265,7 @@ fun LogMealScreen(onDone: () -> Unit) {
     Column(modifier = Modifier.fillMaxSize()) {
         TomadyTopBar(title = "Ajouter un repas", onBack = onDone)
 
-        OutlinedTextField(
+        PillSearchField(
             value = query,
             onValueChange = {
                 query = it
@@ -267,10 +274,8 @@ fun LogMealScreen(onDone: () -> Unit) {
                 selectedMacros = null
                 showManualEntry = false
             },
-            placeholder = { Text("Rechercher un plat ou un aliment…") },
-            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp)
+            placeholder = "Rechercher un plat ou un aliment…",
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
         )
 
         when {
@@ -345,20 +350,20 @@ fun LogMealScreen(onDone: () -> Unit) {
                                 "Récemment mangé",
                                 style = MaterialTheme.typography.titleSmall,
                                 color = TomadyColors.ink,
-                                modifier = Modifier.padding(top = 4.dp)
+                                modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
                             )
                         }
-                        items(recentDishes, key = { "recent-${it.id}" }) { dish ->
-                            SectionCard(modifier = Modifier.clickable { selectDish(dish) }) {
-                                Text(dish.name, style = MaterialTheme.typography.titleSmall, color = TomadyColors.ink)
-                                val macroLine = listOfNotNull(
-                                    dish.calories?.let { "$it kcal" },
-                                    dish.proteinGrams?.let { "P${it.toInt()}g" },
-                                    dish.carbsGrams?.let { "G${it.toInt()}g" },
-                                    dish.fatGrams?.let { "L${it.toInt()}g" }
-                                ).joinToString(" · ")
-                                if (macroLine.isNotEmpty()) {
-                                    Text(macroLine, style = MaterialTheme.typography.bodySmall, color = TomadyColors.muted)
+                        item {
+                            SectionCard {
+                                recentDishes.forEachIndexed { index, dish ->
+                                    ListRow(
+                                        title = dish.name,
+                                        trailingValue = dish.calories?.toString(),
+                                        trailingUnit = if (dish.calories != null) "kcal" else null,
+                                        showChevron = true,
+                                        showDivider = index > 0,
+                                        onClick = { selectDish(dish) }
+                                    )
                                 }
                             }
                         }
@@ -368,20 +373,21 @@ fun LogMealScreen(onDone: () -> Unit) {
                             Text(
                                 "Vos plats",
                                 style = MaterialTheme.typography.titleSmall,
-                                color = TomadyColors.ink
+                                color = TomadyColors.ink,
+                                modifier = Modifier.padding(bottom = 8.dp)
                             )
                         }
-                        items(dishResults, key = { "dish-${it.id}" }) { dish ->
-                            SectionCard(modifier = Modifier.clickable { selectDish(dish) }) {
-                                Text(dish.name, style = MaterialTheme.typography.titleSmall, color = TomadyColors.ink)
-                                val macroLine = listOfNotNull(
-                                    dish.calories?.let { "$it kcal" },
-                                    dish.proteinGrams?.let { "P${it.toInt()}g" },
-                                    dish.carbsGrams?.let { "G${it.toInt()}g" },
-                                    dish.fatGrams?.let { "L${it.toInt()}g" }
-                                ).joinToString(" · ")
-                                if (macroLine.isNotEmpty()) {
-                                    Text(macroLine, style = MaterialTheme.typography.bodySmall, color = TomadyColors.muted)
+                        item {
+                            SectionCard {
+                                dishResults.forEachIndexed { index, dish ->
+                                    ListRow(
+                                        title = dish.name,
+                                        trailingValue = dish.calories?.toString(),
+                                        trailingUnit = if (dish.calories != null) "kcal" else null,
+                                        showChevron = true,
+                                        showDivider = index > 0,
+                                        onClick = { selectDish(dish) }
+                                    )
                                 }
                             }
                         }
@@ -392,21 +398,20 @@ fun LogMealScreen(onDone: () -> Unit) {
                                 "Aliments (FooDB)",
                                 style = MaterialTheme.typography.titleSmall,
                                 color = TomadyColors.ink,
-                                modifier = Modifier.padding(top = 8.dp)
+                                modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)
                             )
                         }
-                        items(foodResults, key = { "food-${it.id}" }) { food ->
-                            SectionCard(modifier = Modifier.clickable { selectFood(food) }) {
-                                Text(
-                                    food.name ?: "Aliment",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = TomadyColors.ink
-                                )
-                                Text(
-                                    food.foodGroup ?: food.category ?: "Général",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = TomadyColors.muted
-                                )
+                        item {
+                            SectionCard {
+                                foodResults.forEachIndexed { index, food ->
+                                    ListRow(
+                                        title = food.name ?: "Aliment",
+                                        subtitle = food.foodGroup ?: food.category ?: "Général",
+                                        showChevron = true,
+                                        showDivider = index > 0,
+                                        onClick = { selectFood(food) }
+                                    )
+                                }
                             }
                         }
                     }
@@ -492,6 +497,8 @@ private fun SelectionDetail(
                         value = servings,
                         onValueChange = onServingsChange,
                         label = { Text("Portions") },
+                        shape = TomadyFieldShape,
+                        colors = tomadyFieldColors(),
                         modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
                     )
                 }
@@ -530,6 +537,8 @@ private fun SelectionDetail(
                         value = quantityG,
                         onValueChange = onQuantityChange,
                         label = { Text("Quantité (g)") },
+                        shape = TomadyFieldShape,
+                        colors = tomadyFieldColors(),
                         modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
                     )
                 }
@@ -539,6 +548,8 @@ private fun SelectionDetail(
                         value = manualName,
                         onValueChange = onManualNameChange,
                         label = { Text("Nom") },
+                        shape = TomadyFieldShape,
+                        colors = tomadyFieldColors(),
                         modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
                     )
 
@@ -553,24 +564,32 @@ private fun SelectionDetail(
                             value = manualKcal,
                             onValueChange = onManualKcalChange,
                             label = { Text("Calories (kcal)") },
+                            shape = TomadyFieldShape,
+                            colors = tomadyFieldColors(),
                             modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
                         )
                         OutlinedTextField(
                             value = manualProtein,
                             onValueChange = onManualProteinChange,
                             label = { Text("Protéines (g)") },
+                            shape = TomadyFieldShape,
+                            colors = tomadyFieldColors(),
                             modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
                         )
                         OutlinedTextField(
                             value = manualCarbs,
                             onValueChange = onManualCarbsChange,
                             label = { Text("Glucides (g)") },
+                            shape = TomadyFieldShape,
+                            colors = tomadyFieldColors(),
                             modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
                         )
                         OutlinedTextField(
                             value = manualFat,
                             onValueChange = onManualFatChange,
                             label = { Text("Lipides (g)") },
+                            shape = TomadyFieldShape,
+                            colors = tomadyFieldColors(),
                             modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
                         )
                         TextButton(
@@ -619,6 +638,8 @@ private fun SelectionDetail(
                                         onValueChange = { onIngredientChange(index, draft.copy(name = it)) },
                                         label = { Text("Ingrédient") },
                                         singleLine = true,
+                                        shape = TomadyFieldShape,
+                                        colors = tomadyFieldColors(),
                                         modifier = Modifier.weight(1f)
                                     )
                                 }
@@ -627,23 +648,40 @@ private fun SelectionDetail(
                                     onValueChange = { onIngredientChange(index, draft.copy(quantityG = it)) },
                                     label = { Text(if (draft.linkedDishId != null) "portions" else "g") },
                                     singleLine = true,
+                                    shape = TomadyFieldShape,
+                                    colors = tomadyFieldColors(),
                                     modifier = Modifier.width(90.dp).padding(start = 8.dp)
                                 )
-                                IconButton(onClick = {
-                                    if (draft.linkedDishId != null) {
-                                        onIngredientChange(index, draft.copy(name = "", linkedDishId = null))
-                                    } else {
-                                        linkingIndex = index
-                                        linkQuery = draft.name
-                                    }
-                                }) {
+                                IconButton(
+                                    onClick = {
+                                        if (draft.linkedDishId != null) {
+                                            onIngredientChange(index, draft.copy(name = "", linkedDishId = null))
+                                        } else {
+                                            linkingIndex = index
+                                            linkQuery = draft.name
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .padding(start = 6.dp)
+                                        .border(
+                                            1.dp,
+                                            if (draft.linkedDishId != null) TomadyColors.violetDeep else TomadyColors.line,
+                                            CircleShape
+                                        )
+                                ) {
                                     Icon(
                                         if (draft.linkedDishId != null) Icons.Filled.LinkOff else Icons.Filled.Link,
-                                        contentDescription = "Lier à un aliment existant"
+                                        contentDescription = "Lier à un aliment existant",
+                                        tint = if (draft.linkedDishId != null) TomadyColors.violetDeep else TomadyColors.muted
                                     )
                                 }
-                                IconButton(onClick = { onRemoveIngredient(index) }) {
-                                    Icon(Icons.Filled.Close, contentDescription = "Retirer l'ingrédient")
+                                IconButton(
+                                    onClick = { onRemoveIngredient(index) },
+                                    modifier = Modifier
+                                        .padding(start = 4.dp)
+                                        .border(1.dp, TomadyColors.line, CircleShape)
+                                ) {
+                                    Icon(Icons.Filled.Close, contentDescription = "Retirer l'ingrédient", tint = TomadyColors.muted)
                                 }
                             }
                             if (linkingIndex == index) {
@@ -653,6 +691,8 @@ private fun SelectionDetail(
                                         onValueChange = { linkQuery = it },
                                         placeholder = { Text("Rechercher un aliment existant…") },
                                         singleLine = true,
+                                        shape = TomadyFieldShape,
+                                        colors = tomadyFieldColors(),
                                         modifier = Modifier.fillMaxWidth()
                                     )
                                     linkResults.forEach { linkedDish ->
@@ -702,15 +742,18 @@ private fun SelectionDetail(
             }
         }
 
-        SectionCard {
-            Text(
-                "Heure du repas",
-                style = MaterialTheme.typography.titleSmall,
-                color = TomadyColors.ink,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-            OutlinedButton(
-                onClick = {
+        Text(
+            "Heure du repas",
+            style = MaterialTheme.typography.titleSmall,
+            color = TomadyColors.ink
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(TomadyFieldShape)
+                .background(TomadyColors.card, TomadyFieldShape)
+                .border(1.dp, TomadyColors.line, TomadyFieldShape)
+                .clickable {
                     val parts = eatenTime.split(":")
                     val initialHour = parts.getOrNull(0)?.toIntOrNull() ?: 12
                     val initialMinute = parts.getOrNull(1)?.toIntOrNull() ?: 0
@@ -721,12 +764,13 @@ private fun SelectionDetail(
                         initialMinute,
                         true
                     ).show()
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(Icons.Filled.Schedule, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
-                Text(eatenTime)
-            }
+                }
+                .padding(horizontal = 18.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Filled.Schedule, contentDescription = null, tint = TomadyColors.muted)
+            Text(eatenTime, style = MaterialTheme.typography.bodyLarge, color = TomadyColors.ink)
         }
 
         Button(

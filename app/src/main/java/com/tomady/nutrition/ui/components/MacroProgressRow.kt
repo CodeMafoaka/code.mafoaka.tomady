@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -34,26 +34,26 @@ fun MacroProgressRow(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(text = label, style = MaterialTheme.typography.bodySmall, color = TomadyColors.muted)
+            Text(text = label, style = MaterialTheme.typography.bodyMedium, color = TomadyColors.ink)
             Text(
                 text = "$consumed/${goal}g",
-                style = MaterialTheme.typography.labelMedium,
-                color = TomadyColors.ink
+                style = MaterialTheme.typography.bodySmall,
+                color = TomadyColors.muted
             )
         }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 4.dp)
-                .height(5.dp)
-                .background(TomadyColors.line, CircleShape),
+                .padding(top = 7.dp)
+                .height(3.dp)
+                .background(TomadyColors.line, RoundedCornerShape(2.dp)),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth(pct)
-                    .height(5.dp)
-                    .background(color, CircleShape)
+                    .height(3.dp)
+                    .background(color, RoundedCornerShape(2.dp))
             )
         }
     }

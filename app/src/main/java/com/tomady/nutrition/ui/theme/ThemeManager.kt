@@ -41,7 +41,7 @@ data class ThemeColorSet(
  * dropped into that assets folder (with the same keys) becomes selectable.
  */
 object ThemeManager {
-    val availableThemes = listOf("light", "night")
+    val availableThemes = listOf("light", "night", "encre")
 
     fun load(context: Context, name: String): ThemeColorSet {
         val safeName = if (name in availableThemes) name else "light"

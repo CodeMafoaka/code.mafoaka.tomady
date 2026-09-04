@@ -1,15 +1,14 @@
 package com.tomady.nutrition.ui.screens
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -22,9 +21,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.tomady.nutrition.data.local.diet.entity.Dish
 import com.tomady.nutrition.data.local.diet.entity.Recipe
 import com.tomady.nutrition.service.diet.NutritionSummary
+import com.tomady.nutrition.ui.components.HeroStat
+import com.tomady.nutrition.ui.components.ListRow
+import com.tomady.nutrition.ui.components.MacroProgressRow
 import com.tomady.nutrition.ui.components.SectionCard
 import com.tomady.nutrition.ui.components.TomadyTopBar
 import com.tomady.nutrition.ui.rememberTomadyApp
@@ -34,6 +37,7 @@ import com.tomady.nutrition.ui.theme.TomadyColors
 private data class IngredientRow(
     val label: String,
     val quantityLabel: String,
+    val linked: Boolean,
     val linkedDishId: String? = null,
     val linkedFoodId: Long? = null
 )
@@ -69,17 +73,20 @@ fun DishDetailScreen(dishId: String, onBack: () -> Unit, onOpenDish: (String) ->
             when {
                 linkedDishId != null -> IngredientRow(
                     label = app.dietService.getDish(linkedDishId)?.name ?: "Aliment",
-                    quantityLabel = "${formatQuantity(ingredient.quantity ?: 1.0)}×",
+                    quantityLabel = "${formatQuantity(ingredient.quantity ?: 1.0)} portion(s) · plat lié",
+                    linked = true,
                     linkedDishId = linkedDishId
                 )
                 linkedFoodId != null -> IngredientRow(
                     label = ingredient.name ?: app.foodbService.getFoodDetails(linkedFoodId)?.food?.name ?: "Aliment",
-                    quantityLabel = quantityLabel(ingredient.quantity, ingredient.unit),
+                    quantityLabel = "${quantityLabel(ingredient.quantity, ingredient.unit)} · FooDB",
+                    linked = false,
                     linkedFoodId = linkedFoodId
                 )
                 else -> IngredientRow(
                     label = ingredient.name ?: "Ingrédient",
-                    quantityLabel = quantityLabel(ingredient.quantity, ingredient.unit)
+                    quantityLabel = quantityLabel(ingredient.quantity, ingredient.unit),
+                    linked = false
                 )
             }
         }
@@ -107,96 +114,100 @@ fun DishDetailScreen(dishId: String, onBack: () -> Unit, onOpenDish: (String) ->
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 item {
-                    SectionCard {
-                        Text(d.name, style = MaterialTheme.typography.titleMedium, color = TomadyColors.ink)
-                        if (!d.description.isNullOrBlank()) {
-                            Text(
-                                d.description!!,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = TomadyColors.inkSoft,
-                                modifier = Modifier.padding(top = 8.dp)
-                            )
-                        }
-                    }
-                }
-                item {
-                    SectionCard {
+                    if (!d.description.isNullOrBlank()) {
                         Text(
-                            "Valeurs nutritionnelles",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = TomadyColors.ink,
-                            modifier = Modifier.padding(bottom = 4.dp)
+                            d.description!!,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TomadyColors.muted,
+                            modifier = Modifier.padding(bottom = 14.dp)
                         )
-                        if (n == null) {
-                            Text(
-                                "Non calculées.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = TomadyColors.muted
+                    }
+                    if (n == null) {
+                        Text(
+                            "Valeurs nutritionnelles non calculées.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TomadyColors.muted
+                        )
+                    } else {
+                        SectionCard {
+                            val caption = if (r != null) {
+                                "kcal pour ${r.servings ?: 1} portion(s) · calculé depuis la recette"
+                            } else {
+                                "kcal · valeurs saisies manuellement"
+                            }
+                            HeroStat(
+                                value = "${n.totalCalories.toInt()}",
+                                caption = caption,
+                                valueFontSize = 44.sp
                             )
-                        } else {
-                            Text(
-                                listOfNotNull(
-                                    "${n.totalCalories.toInt()} kcal",
-                                    "P${n.totalProteinG.toInt()}g",
-                                    "G${n.totalCarbsG.toInt()}g",
-                                    "L${n.totalFatG.toInt()}g"
-                                ).joinToString(" · "),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = TomadyColors.inkSoft
-                            )
+                            Column(modifier = Modifier.padding(top = 18.dp)) {
+                                MacroProgressRow("Protéines", n.totalProteinG.toInt(), 100, TomadyColors.green)
+                                Box(modifier = Modifier.padding(top = 14.dp)) {
+                                    MacroProgressRow("Glucides", n.totalCarbsG.toInt(), 100, TomadyColors.amber)
+                                }
+                                Box(modifier = Modifier.padding(top = 14.dp)) {
+                                    MacroProgressRow("Lipides", n.totalFatG.toInt(), 100, TomadyColors.coral)
+                                }
+                            }
                         }
                     }
                 }
                 if (r != null) {
                     item {
-                        SectionCard {
-                            Text(
-                                "Recette",
-                                style = MaterialTheme.typography.titleSmall,
-                                color = TomadyColors.ink,
-                                modifier = Modifier.padding(bottom = 4.dp)
-                            )
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Recette", style = MaterialTheme.typography.titleSmall, color = TomadyColors.ink)
                             val timing = listOfNotNull(
-                                r.prepTimeMinutes?.let { "Préparation ${it}min" },
-                                r.cookTimeMinutes?.let { "Cuisson ${it}min" },
+                                r.prepTimeMinutes?.let { "${it} min" },
+                                r.cookTimeMinutes?.let { "${it} min" },
                                 r.servings?.let { "$it portions" }
                             ).joinToString(" · ")
                             if (timing.isNotEmpty()) {
                                 Text(timing, style = MaterialTheme.typography.bodySmall, color = TomadyColors.muted)
                             }
-                            if (!r.instructions.isNullOrBlank()) {
-                                Text(
-                                    r.instructions!!,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = TomadyColors.inkSoft,
-                                    modifier = Modifier.padding(top = 8.dp)
-                                )
-                            }
+                        }
+                    }
+                    if (!r.instructions.isNullOrBlank()) {
+                        item {
+                            Text(
+                                r.instructions!!,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TomadyColors.inkSoft,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
                         }
                     }
                 }
                 if (ingredientRows.isNotEmpty()) {
                     item {
-                        Text(
-                            "Ingrédients",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = TomadyColors.ink,
-                            modifier = Modifier.padding(top = 4.dp)
-                        )
-                    }
-                    items(ingredientRows) { row ->
-                        val linkedDishId = row.linkedDishId
-                        val linkedFoodId = row.linkedFoodId
-                        val onClick: (() -> Unit)? = when {
-                            linkedDishId != null -> ({ onOpenDish(linkedDishId) })
-                            linkedFoodId != null -> ({ onOpenFood(linkedFoodId) })
-                            else -> null
+                        if (r == null) {
+                            Text(
+                                "Ingrédients",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = TomadyColors.ink,
+                                modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
+                            )
                         }
-                        SectionCard(
-                            modifier = if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
-                        ) {
-                            Text(row.label, style = MaterialTheme.typography.titleSmall, color = TomadyColors.ink)
-                            Text(row.quantityLabel, style = MaterialTheme.typography.bodySmall, color = TomadyColors.muted)
+                        SectionCard {
+                            ingredientRows.forEachIndexed { index, row ->
+                                val linkedDishId = row.linkedDishId
+                                val linkedFoodId = row.linkedFoodId
+                                val onClick: (() -> Unit)? = when {
+                                    linkedDishId != null -> ({ onOpenDish(linkedDishId) })
+                                    linkedFoodId != null -> ({ onOpenFood(linkedFoodId) })
+                                    else -> null
+                                }
+                                ListRow(
+                                    title = row.label,
+                                    subtitle = row.quantityLabel,
+                                    titleColor = if (row.linked) TomadyColors.violetDeep else TomadyColors.ink,
+                                    showChevron = onClick != null,
+                                    showDivider = index > 0,
+                                    onClick = onClick
+                                )
+                            }
                         }
                     }
                 } else if (r == null) {

@@ -4,12 +4,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -24,10 +21,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.tomady.nutrition.service.foodb.FoodDetailResult
 import com.tomady.nutrition.service.nutrition.FoodMacros
+import com.tomady.nutrition.ui.components.HeroStat
+import com.tomady.nutrition.ui.components.ListRow
+import com.tomady.nutrition.ui.components.MacroProgressRow
 import com.tomady.nutrition.ui.components.SectionCard
 import com.tomady.nutrition.ui.components.TomadyTopBar
 import com.tomady.nutrition.ui.rememberTomadyApp
 import com.tomady.nutrition.ui.theme.TomadyColors
+import androidx.compose.ui.unit.sp
 
 @Composable
 fun FoodDetailScreen(foodId: Long, onBack: () -> Unit) {
@@ -64,50 +65,39 @@ fun FoodDetailScreen(foodId: Long, onBack: () -> Unit) {
             }
         } else {
             val d = detail!!
+            val m = macros
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 item {
-                    SectionCard {
+                    if (!d.food.nameScientific.isNullOrBlank() || d.food.foodGroup != null || d.food.category != null) {
                         Text(
-                            d.food.name ?: "Aliment",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = TomadyColors.ink
-                        )
-                        if (!d.food.nameScientific.isNullOrBlank()) {
-                            Text(
-                                d.food.nameScientific!!,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = TomadyColors.muted
-                            )
-                        }
-                        Text(
-                            d.food.foodGroup ?: d.food.category ?: "Général",
-                            style = MaterialTheme.typography.bodySmall,
+                            listOfNotNull(d.food.nameScientific, d.food.foodGroup ?: d.food.category)
+                                .joinToString(" · "),
+                            style = MaterialTheme.typography.bodyMedium,
                             color = TomadyColors.muted,
-                            modifier = Modifier.padding(top = 4.dp)
+                            modifier = Modifier.padding(bottom = 8.dp)
                         )
-                        if (!d.food.description.isNullOrBlank()) {
-                            Text(
-                                d.food.description!!,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = TomadyColors.inkSoft,
-                                modifier = Modifier.padding(top = 8.dp)
-                            )
-                        }
                     }
+                    if (!d.food.description.isNullOrBlank()) {
+                        Text(
+                            d.food.description!!,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TomadyColors.inkSoft,
+                            modifier = Modifier.padding(bottom = 14.dp)
+                        )
+                    }
+                    Text(
+                        "Macronutriments",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = TomadyColors.ink,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
                 }
                 item {
-                    val m = macros
                     SectionCard {
-                        Text(
-                            "Macronutriments",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = TomadyColors.ink,
-                            modifier = Modifier.padding(bottom = 4.dp)
-                        )
                         if (m == null) {
                             Text(
                                 "Aucune correspondance trouvée (source : USDA FoodData Central).",
@@ -115,57 +105,54 @@ fun FoodDetailScreen(foodId: Long, onBack: () -> Unit) {
                                 color = TomadyColors.muted
                             )
                         } else {
-                            Text(
-                                "Pour : ${m.matchedName}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = TomadyColors.muted
+                            HeroStat(
+                                value = "${m.calories?.toInt() ?: 0}",
+                                caption = "kcal · correspondance USDA « ${m.matchedName} »",
+                                valueFontSize = 40.sp
                             )
-                            Text(
-                                listOfNotNull(
-                                    m.calories?.let { "${it.toInt()} kcal" },
-                                    m.proteinG?.let { "P${it.toInt()}g" },
-                                    m.carbsG?.let { "G${it.toInt()}g" },
-                                    m.fatG?.let { "L${it.toInt()}g" },
-                                    m.fiberG?.let { "Fibres ${it.toInt()}g" }
-                                ).joinToString(" · "),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = TomadyColors.inkSoft,
-                                modifier = Modifier.padding(top = 4.dp)
-                            )
+                            Column(modifier = Modifier.padding(top = 18.dp)) {
+                                MacroProgressRow("Protéines", (m.proteinG ?: 0.0).toInt(), 100, TomadyColors.green)
+                                Box(modifier = Modifier.padding(top = 14.dp)) {
+                                    MacroProgressRow("Glucides", (m.carbsG ?: 0.0).toInt(), 100, TomadyColors.amber)
+                                }
+                                Box(modifier = Modifier.padding(top = 14.dp)) {
+                                    MacroProgressRow("Lipides", (m.fatG ?: 0.0).toInt(), 100, TomadyColors.coral)
+                                }
+                            }
                         }
                     }
+                }
+                item {
+                    Text(
+                        "Composition chimique",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = TomadyColors.ink,
+                        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                    )
+                    Text(
+                        "FooDB — chimie, pas macros",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TomadyColors.muted,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
                 }
                 if (d.nutrients.isEmpty()) {
                     item {
                         Text(
-                            "Aucune donnée de composition chimique disponible pour cet aliment (FooDB).",
+                            "Aucune donnée de composition chimique disponible pour cet aliment.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = TomadyColors.muted
                         )
                     }
                 } else {
                     item {
-                        Text(
-                            "Composition chimique (FooDB)",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = TomadyColors.ink
-                        )
-                    }
-                    items(d.nutrients, key = { it.id }) { nutrient ->
                         SectionCard {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    nutrient.nutrientName ?: "Nutriment",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = TomadyColors.ink
-                                )
-                                Text(
-                                    "${nutrient.amount ?: 0.0} ${nutrient.unit ?: ""}",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = TomadyColors.muted
+                            d.nutrients.forEachIndexed { index, nutrient ->
+                                ListRow(
+                                    title = nutrient.nutrientName ?: "Nutriment",
+                                    trailingValue = "${nutrient.amount ?: 0.0}",
+                                    trailingUnit = nutrient.unit,
+                                    showDivider = index > 0
                                 )
                             }
                         }
