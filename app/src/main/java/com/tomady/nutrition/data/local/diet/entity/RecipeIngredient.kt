@@ -19,7 +19,7 @@ import androidx.room.PrimaryKey
             onDelete = ForeignKey.CASCADE
         )
     ],
-    indices = [Index("recipe_id")]
+    indices = [Index("recipe_id"), Index("ingredient_dish_id")]
 )
 data class RecipeIngredient(
     @PrimaryKey
@@ -40,6 +40,12 @@ data class RecipeIngredient(
 
     @ColumnInfo(name = "unit")
     val unit: String? = null,
+
+    /** When this ingredient IS another [Dish] (e.g. a cocktail's "rum" is
+     * itself a whole recipe) — its own nutrition gets computed recursively.
+     * [quantity] is then a servings multiplier of that dish, not grams. */
+    @ColumnInfo(name = "ingredient_dish_id")
+    val ingredientDishId: String? = null,
 
     @ColumnInfo(name = "created_at")
     val createdAt: Long = System.currentTimeMillis(),

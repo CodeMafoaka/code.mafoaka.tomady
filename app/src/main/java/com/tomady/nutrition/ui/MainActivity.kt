@@ -29,6 +29,7 @@ import com.tomady.nutrition.ui.components.TomadyBottomBar
 import com.tomady.nutrition.ui.screens.AssistantScreen
 import com.tomady.nutrition.ui.screens.CatalogueScreen
 import com.tomady.nutrition.ui.screens.DashboardScreen
+import com.tomady.nutrition.ui.screens.DishDetailScreen
 import com.tomady.nutrition.ui.screens.FoodDetailScreen
 import com.tomady.nutrition.ui.screens.JournalScreen
 import com.tomady.nutrition.ui.screens.LogMealScreen
@@ -58,6 +59,7 @@ class MainActivity : ComponentActivity() {
 }
 
 private const val ROUTE_FOOD_DETAIL = "foodDetail/{foodId}"
+private const val ROUTE_DISH_DETAIL = "dishDetail/{dishId}"
 
 @Composable
 fun TomadyApp() {
@@ -125,15 +127,25 @@ fun TomadyApp() {
                     })
                 }
                 composable("catalogue") {
-                    CatalogueScreen(onOpenFood = { foodId ->
-                        navController.navigate("foodDetail/$foodId")
-                    })
+                    CatalogueScreen(
+                        onOpenFood = { foodId -> navController.navigate("foodDetail/$foodId") },
+                        onOpenDish = { dishId -> navController.navigate("dishDetail/$dishId") }
+                    )
                 }
                 composable("assistant") { AssistantScreen() }
                 composable("profile") { ProfileScreen() }
                 composable(ROUTE_FOOD_DETAIL) { backStackEntry ->
                     val foodId = backStackEntry.arguments?.getString("foodId")?.toLongOrNull() ?: return@composable
                     FoodDetailScreen(foodId = foodId, onBack = { navController.popBackStack() })
+                }
+                composable(ROUTE_DISH_DETAIL) { backStackEntry ->
+                    val dishId = backStackEntry.arguments?.getString("dishId") ?: return@composable
+                    DishDetailScreen(
+                        dishId = dishId,
+                        onBack = { navController.popBackStack() },
+                        onOpenDish = { linkedDishId -> navController.navigate("dishDetail/$linkedDishId") },
+                        onOpenFood = { foodId -> navController.navigate("foodDetail/$foodId") }
+                    )
                 }
             }
         }

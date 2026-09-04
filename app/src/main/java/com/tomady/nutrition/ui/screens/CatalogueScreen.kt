@@ -26,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.tomady.nutrition.data.local.diet.entity.Dish
 import com.tomady.nutrition.data.local.foodb.entity.FoodItem
 import com.tomady.nutrition.ui.components.SectionCard
 import com.tomady.nutrition.ui.components.TomadyTopBar
@@ -33,20 +34,23 @@ import com.tomady.nutrition.ui.rememberTomadyApp
 import com.tomady.nutrition.ui.theme.TomadyColors
 
 /**
- * Food catalogue search — this screen has no Gemma/AI dependency at all,
- * it only queries [com.tomady.nutrition.service.foodb.FooDBDataAPIService],
- * so it works identically whether the AI model is downloaded or not.
+ * Food catalogue search — merges raw FooDB foods (atomic, no recipe) with
+ * user/AI-created [Dish] entries (which may be composed of a recipe, see
+ * [DishDetailScreen]). Doesn't depend on Gemma being loaded: FooDB search and
+ * dish search both work identically whether the AI model is downloaded or not.
  */
 @Composable
-fun CatalogueScreen(onOpenFood: (Long) -> Unit) {
+fun CatalogueScreen(onOpenFood: (Long) -> Unit, onOpenDish: (String) -> Unit) {
     val app = rememberTomadyApp()
     var query by remember { mutableStateOf("") }
-    var results by remember { mutableStateOf<List<FoodItem>>(emptyList()) }
+    var dishResults by remember { mutableStateOf<List<Dish>>(emptyList()) }
+    var foodResults by remember { mutableStateOf<List<FoodItem>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
 
     LaunchedEffect(query) {
         loading = true
-        results = app.foodbService.searchFood(query).take(200)
+        dishResults = app.dietService.searchDishes(query).take(100)
+        foodResults = app.foodbService.searchFood(query).take(200)
         loading = false
     }
 
@@ -68,7 +72,7 @@ fun CatalogueScreen(onOpenFood: (Long) -> Unit) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = TomadyColors.green)
             }
-        } else if (results.isEmpty()) {
+        } else if (dishResults.isEmpty() && foodResults.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
                     "Aucun aliment trouvé.",
@@ -82,20 +86,49 @@ fun CatalogueScreen(onOpenFood: (Long) -> Unit) {
                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                items(results, key = { it.id }) { food ->
-                    SectionCard(
-                        modifier = Modifier.clickable { onOpenFood(food.id) }
-                    ) {
+                if (dishResults.isNotEmpty()) {
+                    item {
                         Text(
-                            food.name ?: "Aliment",
+                            "Vos plats",
                             style = MaterialTheme.typography.titleSmall,
                             color = TomadyColors.ink
                         )
+                    }
+                    items(dishResults, key = { "dish-${it.id}" }) { dish ->
+                        SectionCard(modifier = Modifier.clickable { onOpenDish(dish.id) }) {
+                            Text(dish.name, style = MaterialTheme.typography.titleSmall, color = TomadyColors.ink)
+                            Text(
+                                dish.category ?: "Plat",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TomadyColors.muted
+                            )
+                        }
+                    }
+                }
+                if (foodResults.isNotEmpty()) {
+                    item {
                         Text(
-                            food.foodGroup ?: food.category ?: "Général",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TomadyColors.muted
+                            "Aliments (FooDB)",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = TomadyColors.ink,
+                            modifier = Modifier.padding(top = 8.dp)
                         )
+                    }
+                    items(foodResults, key = { "food-${it.id}" }) { food ->
+                        SectionCard(
+                            modifier = Modifier.clickable { onOpenFood(food.id) }
+                        ) {
+                            Text(
+                                food.name ?: "Aliment",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = TomadyColors.ink
+                            )
+                            Text(
+                                food.foodGroup ?: food.category ?: "Général",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TomadyColors.muted
+                            )
+                        }
                     }
                 }
             }

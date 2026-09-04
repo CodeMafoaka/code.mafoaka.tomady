@@ -18,6 +18,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
@@ -57,8 +59,17 @@ private fun currentTimeHHmm(): String {
     return "%02d:%02d".format(now.hour, now.minute)
 }
 
-/** One row of the ingredient list when building a new dish from its recipe. */
-private data class IngredientDraft(val name: String = "", val quantityG: String = "100")
+/**
+ * One row of the ingredient list when building a new dish from its recipe.
+ * [linkedDishId] is set when this ingredient IS another existing aliment/plat
+ * (e.g. a cocktail's "rum", which has its own recipe) rather than a raw
+ * name — [quantityG] is then read as a servings multiplier, not grams.
+ */
+private data class IngredientDraft(
+    val name: String = "",
+    val quantityG: String = "100",
+    val linkedDishId: String? = null
+)
 
 /**
  * Full-screen "log what I ate" flow (the hackathon-demoed feature): search
@@ -202,13 +213,22 @@ fun LogMealScreen(onDone: () -> Unit) {
                     val newDish = app.dietService.createDish(name = manualName)
                     val recipe = app.dietService.createRecipe(name = manualName, dishId = newDish.id)
                     for (draft in ingredientDrafts) {
-                        if (draft.name.isBlank()) continue
-                        app.dietService.addRecipeIngredient(
-                            recipeId = recipe.id,
-                            name = draft.name,
-                            quantity = draft.quantityG.toDoubleOrNull() ?: 100.0,
-                            unit = "g"
-                        )
+                        if (draft.name.isBlank() && draft.linkedDishId == null) continue
+                        if (draft.linkedDishId != null) {
+                            app.dietService.addRecipeIngredient(
+                                recipeId = recipe.id,
+                                name = draft.name,
+                                ingredientDishId = draft.linkedDishId,
+                                quantity = draft.quantityG.toDoubleOrNull() ?: 1.0
+                            )
+                        } else {
+                            app.dietService.addRecipeIngredient(
+                                recipeId = recipe.id,
+                                name = draft.name,
+                                quantity = draft.quantityG.toDoubleOrNull() ?: 100.0,
+                                unit = "g"
+                            )
+                        }
                     }
                     app.dietService.refreshDishNutritionCache(newDish.id)
                     app.dietService.logMealConsumption(
@@ -230,7 +250,8 @@ fun LogMealScreen(onDone: () -> Unit) {
         selectedDish != null -> true
         selectedFood != null -> !lookingUpMacros
         showManualEntry && useManualMacros -> manualName.isNotBlank()
-        showManualEntry -> manualName.isNotBlank() && ingredientDrafts.any { it.name.isNotBlank() }
+        showManualEntry -> manualName.isNotBlank() &&
+            ingredientDrafts.any { it.name.isNotBlank() || it.linkedDishId != null }
         else -> false
     }
 
@@ -430,6 +451,19 @@ private fun SelectionDetail(
     onSave: () -> Unit
 ) {
     val context = LocalContext.current
+    val app = rememberTomadyApp()
+
+    var linkingIndex by remember { mutableStateOf<Int?>(null) }
+    var linkQuery by remember { mutableStateOf("") }
+    var linkResults by remember { mutableStateOf(listOf<Dish>()) }
+
+    LaunchedEffect(linkingIndex, linkQuery) {
+        linkResults = if (linkingIndex != null && linkQuery.isNotBlank()) {
+            app.dietService.searchDishes(linkQuery).take(10)
+        } else {
+            emptyList()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -562,22 +596,91 @@ private fun SelectionDetail(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
                             ) {
-                                OutlinedTextField(
-                                    value = draft.name,
-                                    onValueChange = { onIngredientChange(index, draft.copy(name = it)) },
-                                    label = { Text("Ingrédient") },
-                                    singleLine = true,
-                                    modifier = Modifier.weight(1f)
-                                )
+                                if (draft.linkedDishId != null) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Icon(
+                                            Icons.Filled.Link,
+                                            contentDescription = null,
+                                            tint = TomadyColors.violetDeep,
+                                            modifier = Modifier.padding(end = 6.dp)
+                                        )
+                                        Text(
+                                            draft.name,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = TomadyColors.ink
+                                        )
+                                    }
+                                } else {
+                                    OutlinedTextField(
+                                        value = draft.name,
+                                        onValueChange = { onIngredientChange(index, draft.copy(name = it)) },
+                                        label = { Text("Ingrédient") },
+                                        singleLine = true,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
                                 OutlinedTextField(
                                     value = draft.quantityG,
                                     onValueChange = { onIngredientChange(index, draft.copy(quantityG = it)) },
-                                    label = { Text("g") },
+                                    label = { Text(if (draft.linkedDishId != null) "portions" else "g") },
                                     singleLine = true,
-                                    modifier = Modifier.width(80.dp).padding(start = 8.dp)
+                                    modifier = Modifier.width(90.dp).padding(start = 8.dp)
                                 )
+                                IconButton(onClick = {
+                                    if (draft.linkedDishId != null) {
+                                        onIngredientChange(index, draft.copy(name = "", linkedDishId = null))
+                                    } else {
+                                        linkingIndex = index
+                                        linkQuery = draft.name
+                                    }
+                                }) {
+                                    Icon(
+                                        if (draft.linkedDishId != null) Icons.Filled.LinkOff else Icons.Filled.Link,
+                                        contentDescription = "Lier à un aliment existant"
+                                    )
+                                }
                                 IconButton(onClick = { onRemoveIngredient(index) }) {
                                     Icon(Icons.Filled.Close, contentDescription = "Retirer l'ingrédient")
+                                }
+                            }
+                            if (linkingIndex == index) {
+                                Column(modifier = Modifier.fillMaxWidth().padding(start = 8.dp, top = 4.dp)) {
+                                    OutlinedTextField(
+                                        value = linkQuery,
+                                        onValueChange = { linkQuery = it },
+                                        placeholder = { Text("Rechercher un aliment existant…") },
+                                        singleLine = true,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    linkResults.forEach { linkedDish ->
+                                        SectionCard(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(top = 6.dp)
+                                                .clickable {
+                                                    onIngredientChange(
+                                                        index,
+                                                        draft.copy(name = linkedDish.name, linkedDishId = linkedDish.id)
+                                                    )
+                                                    linkingIndex = null
+                                                }
+                                        ) {
+                                            Text(
+                                                linkedDish.name,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = TomadyColors.ink
+                                            )
+                                        }
+                                    }
+                                    TextButton(
+                                        onClick = { linkingIndex = null },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text("Annuler")
+                                    }
                                 }
                             }
                         }

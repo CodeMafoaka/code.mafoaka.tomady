@@ -286,13 +286,20 @@ class DietAPIService(
 
     /**
      * Adds a [RecipeIngredient] to an existing recipe.
+     *
+     * @param ingredientDishId When this ingredient IS another [Dish] (e.g. a
+     * cocktail composed of two other spirits, each with their own recipe) —
+     * pass that dish's id here instead of/alongside [name]. Its nutrition is
+     * then resolved recursively by [computeDishNutrition], with [quantity]
+     * read as a servings multiplier of that dish rather than grams.
      */
     suspend fun addRecipeIngredient(
         recipeId: String,
         foodItemId: String? = null,
         name: String? = null,
         quantity: Double? = null,
-        unit: String? = null
+        unit: String? = null,
+        ingredientDishId: String? = null
     ): RecipeIngredient = withContext(Dispatchers.IO) {
         val ingredient = RecipeIngredient(
             id = UUID.randomUUID().toString(),
@@ -300,7 +307,8 @@ class DietAPIService(
             foodItemId = foodItemId,
             name = name,
             quantity = quantity,
-            unit = unit
+            unit = unit,
+            ingredientDishId = ingredientDishId
         )
         dietDatabase.insertRecipeIngredient(ingredient)
         ingredient
@@ -311,6 +319,13 @@ class DietAPIService(
      */
     suspend fun getRecipeIngredients(recipeId: String): List<RecipeIngredient> = withContext(Dispatchers.IO) {
         dietDatabase.getIngredientsByRecipe(recipeId)
+    }
+
+    /**
+     * Retrieves all recipes composing a [Dish] (usually zero or one).
+     */
+    suspend fun getRecipesForDish(dishId: String): List<Recipe> = withContext(Dispatchers.IO) {
+        dietDatabase.getRecipesByDishId(dishId)
     }
 
     /**
@@ -430,7 +445,21 @@ class DietAPIService(
      * @return A [NutritionSummary] with aggregated values, or null if the dish
      *         cannot be found.
      */
-    suspend fun computeDishNutrition(dishId: String): NutritionSummary? = withContext(Dispatchers.IO) {
+    suspend fun computeDishNutrition(dishId: String): NutritionSummary? =
+        computeDishNutrition(dishId, visitedDishIds = emptySet())
+
+    /**
+     * @param visitedDishIds Dish ids already being computed higher up the call
+     * stack — an ingredient can reference another [Dish] (see
+     * [addRecipeIngredient]'s `ingredientDishId`), so this guards against a
+     * cycle (A references B which references A) recursing forever.
+     */
+    private suspend fun computeDishNutrition(
+        dishId: String,
+        visitedDishIds: Set<String>
+    ): NutritionSummary? = withContext(Dispatchers.IO) {
+        if (dishId in visitedDishIds) return@withContext null
+
         // 1. Resolve the dish
         val dish = dietDatabase.getDishById(dishId) ?: return@withContext null
 
@@ -446,11 +475,12 @@ class DietAPIService(
         val totalSugarG = 0.0
         val totalSodiumMg = 0.0
         val nutrientDetails = mutableListOf<NutrientDetail>()
+        val nextVisited = visitedDishIds + dishId
 
         for (recipe in recipes) {
             val ingredients = dietDatabase.getIngredientsByRecipe(recipe.id)
             for (ingredient in ingredients) {
-                val priced = priceIngredient(ingredient) ?: continue
+                val priced = priceIngredient(ingredient, nextVisited) ?: continue
 
                 totalCalories += priced.calories
                 totalProteinG += priced.proteinG
@@ -506,10 +536,31 @@ class DietAPIService(
      * Resolves a [RecipeIngredient]'s macros, scaled to its actual quantity.
      * Tries [FooDBDataAPIService] first (real values for the bundled seed/demo
      * dataset, offline and instant); falls back to [nutritionLookupService]
-     * (USDA, by name) since real synced FooDB data has no usable values.
-     * Returns null if neither source can price it.
+     * (USDA, by name) since real synced FooDB data has no usable values. If
+     * [RecipeIngredient.ingredientDishId] is set, this ingredient IS another
+     * [Dish] — its nutrition is resolved recursively via [computeDishNutrition]
+     * instead, with [RecipeIngredient.quantity] read as a servings multiplier
+     * (default 1x) rather than grams.
+     * Returns null if no source can price it.
      */
-    private suspend fun priceIngredient(ingredient: RecipeIngredient): PricedIngredient? {
+    private suspend fun priceIngredient(
+        ingredient: RecipeIngredient,
+        visitedDishIds: Set<String>
+    ): PricedIngredient? {
+        val referencedDishId = ingredient.ingredientDishId
+        if (referencedDishId != null) {
+            val referenced = computeDishNutrition(referencedDishId, visitedDishIds) ?: return null
+            val servings = ingredient.quantity ?: 1.0
+            return PricedIngredient(
+                calories = referenced.totalCalories * servings,
+                proteinG = referenced.totalProteinG * servings,
+                carbsG = referenced.totalCarbsG * servings,
+                fatG = referenced.totalFatG * servings,
+                fiberG = referenced.totalFiberG * servings,
+                matchedName = referenced.dishName
+            )
+        }
+
         val foodItemId = ingredient.foodItemId?.toLongOrNull()
         val foodDetail = foodItemId?.let { foodbService.getFoodDetails(it) }
         // Ingredient quantity is grams; source macros are per 100g.
